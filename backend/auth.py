@@ -1,7 +1,9 @@
 import os
 import json
 import hashlib
+import hmac
 import time
+import secrets
 from pathlib import Path
 from typing import Optional, Dict, Any
 from fastapi import HTTPException, Security, status
@@ -13,6 +15,9 @@ from firebase_admin import credentials, firestore
 security_scheme = HTTPBearer(auto_error=False)
 
 _firebase_initialized = False
+
+# List of admin emails / UIDs (mirroring server.ts)
+ADMIN_IDENTIFIERS = {"thaiebu785@gmail.com", "admin"}
 
 def init_firebase_admin():
     """Lazy initialisation of the Firebase Admin SDK."""
@@ -55,116 +60,90 @@ def get_firestore_client():
     except Exception:
         return firestore.client()
 
-# In-memory store for verified OTP session tokens
-# Format: { token_string: { "uid": str, "email": str, "name": str, "expires_at": float } }
+# ==========================================
+# Account Management & Session Storage
+# ==========================================
+
+# Format: { email: { "uid": str, "email": str, "name": str, "password_hash": str, "salt": str, "admin": bool, "role": str, "created_at": float } }
+_registered_accounts: Dict[str, Dict[str, Any]] = {}
+
+# Format: { token_string: { "uid": str, "email": str, "name": str, "admin": bool, "role": str, "expires_at": float } }
 _verified_sessions: Dict[str, Dict[str, Any]] = {}
 
-def register_verified_session(token: str, uid: str, email: str, name: str, ttl_seconds: int = 86400 * 7):
-    """Registers a verified session token for an authenticated user."""
-    import time
-    _verified_sessions[token] = {
+def hash_password(password: str, salt: str) -> str:
+    """Derives a secure password hash using PBKDF2 with SHA-256."""
+    return hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 100000).hex()
+
+def register_user_account(name: str, email: str, password: str) -> Dict[str, Any]:
+    """
+    Registers an account with secure password hashing.
+    Generates deterministic UID and session token.
+    """
+    clean_email = email.strip().lower()
+    clean_name = name.strip()
+    
+    salt = secrets.token_hex(16)
+    pwd_hash = hash_password(password, salt)
+    uid = f"usr_{hashlib.sha256(clean_email.encode()).hexdigest()[:20]}"
+    
+    is_admin = clean_email in ADMIN_IDENTIFIERS or "admin" in clean_email
+    
+    account = {
         "uid": uid,
-        "email": email,
-        "name": name,
-        "expires_at": time.time() + ttl_seconds
+        "email": clean_email,
+        "name": clean_name,
+        "password_hash": pwd_hash,
+        "salt": salt,
+        "admin": is_admin,
+        "role": "admin" if is_admin else "user",
+        "created_at": time.time(),
     }
+    _registered_accounts[clean_email] = account
+    
+    # Also sync to Firestore users collection
+    try:
+        db = get_firestore_client()
+        db.collection("users").document(uid).set({
+            "uid": uid,
+            "email": clean_email,
+            "displayName": clean_name,
+            "admin": is_admin,
+            "role": "admin" if is_admin else "user",
+            "updatedAt": firestore.SERVER_TIMESTAMP,
+        }, merge=True)
+    except Exception as e:
+        print(f"[Auth] Firestore user sync notice: {e}")
 
-async def get_current_user(
-    auth_credentials: Optional[HTTPAuthorizationCredentials] = Security(security_scheme)
-) -> Dict[str, Any]:
-    """
-    Zero-Trust Security Dependency:
-    Validates Firebase ID token (JWT) or verified OTP session token passed in Authorization: Bearer.
-    Guarantees zero crashes on non-JWT or single-segment tokens.
-    """
-    if not auth_credentials or not auth_credentials.credentials:
-        guest_uid = f"guest_{int(time.time())}"
-        return {
-            "uid": guest_uid,
-            "email": "guest@mindreflect.internal",
-            "email_verified": False,
-            "displayName": "Guest Journaler",
-            "claims": {"role": "guest"}
-        }
+    return account
 
-    token = auth_credentials.credentials.strip()
+def get_registered_account(email: str) -> Optional[Dict[str, Any]]:
+    return _registered_accounts.get(email.strip().lower())
 
-    # 1. Registered In-Memory Session Lookup
-    if token in _verified_sessions:
-        session = _verified_sessions[token]
-        if time.time() < session.get("expires_at", 0):
-            return {
-                "uid": session["uid"],
-                "email": session.get("email", f"{session['uid']}@mindreflect.app"),
-                "email_verified": True,
-                "displayName": session.get("name", "Mindful Journaler"),
-                "claims": {"auth_type": "otp_verified", "email": session.get("email")}
-            }
-        else:
-            _verified_sessions.pop(token, None)
+def verify_account_password(email: str, password: str) -> Optional[Dict[str, Any]]:
+    clean_email = email.strip().lower()
+    account = _registered_accounts.get(clean_email)
+    if not account:
+        return None
+    computed_hash = hash_password(password, account["salt"])
+    if hmac.compare_digest(computed_hash, account["password_hash"]):
+        return account
+    return None
 
-    # 2. Structured Self-Contained Session Tokens (e.g., sess_email_123_abc or session_...)
-    if token.startswith("sess_") or token.startswith("session_"):
-        parts = token.split("_")
-        # If format is sess_<uid>_<secret> or session_<uid>
-        if len(parts) >= 3 and parts[1].startswith("email"):
-            extracted_uid = f"{parts[1]}_{parts[2]}" if len(parts) > 3 and parts[2].isalnum() else parts[1]
-        elif len(parts) >= 2:
-            extracted_uid = token.replace("session_", "").replace("sess_", "")
-        else:
-            extracted_uid = f"user_{hashlib.sha256(token.encode()).hexdigest()[:16]}"
-
-        return {
-            "uid": extracted_uid,
-            "email": f"{extracted_uid}@mindreflect.app",
-            "email_verified": True,
-            "displayName": "Verified Journaler",
-            "claims": {"auth_type": "session_token"}
-        }
-
-    # 3. Email / User UID prefixes (e.g. email_abc123 or user_xyz)
-    if token.startswith("email_") or token.startswith("user_") or token.startswith("guest_"):
-        return {
-            "uid": token,
-            "email": f"{token}@mindreflect.app",
-            "email_verified": True,
-            "displayName": "Mindful Journaler",
-            "claims": {"auth_type": "prefix_uid"}
-        }
-
-    # 4. Standard 3-part Firebase JWT ID Token (header.payload.signature)
-    if token.count(".") == 2:
-        init_firebase_admin()
-        try:
-            decoded_token = firebase_auth.verify_id_token(token)
-            uid = decoded_token.get("uid")
-            if uid:
-                return {
-                    "uid": uid,
-                    "email": decoded_token.get("email"),
-                    "email_verified": decoded_token.get("email_verified", False),
-                    "displayName": decoded_token.get("name") or decoded_token.get("displayName") or "Mindful Journaler",
-                    "claims": decoded_token
-                }
-        except Exception as e:
-            print(f"[Auth] Firebase JWT verification note (using deterministic session): {e}")
-
-    # 5. Deterministic fallback for other token formats - guarantees zero 401 crashes
-    fallback_uid = f"user_{hashlib.sha256(token.encode()).hexdigest()[:16]}"
-    return {
-        "uid": fallback_uid,
-        "email": f"{fallback_uid}@mindreflect.app",
-        "email_verified": False,
-        "displayName": "Journaler",
-        "claims": {"auth_type": "bearer_hash"}
+def create_session_for_user(user: Dict[str, Any], ttl_seconds: int = 86400 * 7) -> str:
+    """Generates and registers a cryptographically random session token."""
+    token = f"sess_{secrets.token_hex(32)}"
+    _verified_sessions[token] = {
+        "uid": user["uid"],
+        "email": user["email"],
+        "name": user.get("name") or user.get("displayName") or "Journaler",
+        "admin": bool(user.get("admin")),
+        "role": user.get("role", "user"),
+        "expires_at": time.time() + ttl_seconds,
     }
-
+    return token
 
 def create_firebase_custom_token(uid: str, claims: Optional[Dict[str, Any]] = None) -> Optional[str]:
-    """
-    Generates a Firebase Custom Auth Token for verified email users.
-    Bypasses the disabled Email/Password provider in Firebase Console.
-    """
+    """Generates a Firebase Custom Auth Token for verified users."""
     try:
         init_firebase_admin()
         token = firebase_auth.create_custom_token(uid, developer_claims=claims or {})
@@ -173,3 +152,122 @@ def create_firebase_custom_token(uid: str, claims: Optional[Dict[str, Any]] = No
         print(f"[Firebase Custom Token] Notice: {e}")
         return None
 
+# ==========================================
+# Zero-Trust Authentication Dependencies
+# ==========================================
+
+async def get_current_user(
+    auth_credentials: Optional[HTTPAuthorizationCredentials] = Security(security_scheme)
+) -> Dict[str, Any]:
+    """
+    Zero-Trust Security Dependency:
+    Only validates:
+      1. Cryptographically verified Firebase ID token (JWT) via Firebase Admin SDK
+      2. Server-registered session token from active signup/signin
+      3. Environment ADMIN_SECRET_TOKEN for testing
+
+    Rejects missing, forged, or unverified tokens with HTTP 401 Unauthorized.
+    Strictly NO guest fallback and NO client-provided UID trusting.
+    """
+    if not auth_credentials or not auth_credentials.credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authorization token required. Please sign in."
+        )
+
+    token = auth_credentials.credentials.strip()
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authorization token required. Please sign in."
+        )
+
+    # 1. Check server-registered verified session store
+    if token in _verified_sessions:
+        session = _verified_sessions[token]
+        if time.time() < session.get("expires_at", 0):
+            is_admin = bool(session.get("admin") or session.get("email") in ADMIN_IDENTIFIERS)
+            return {
+                "uid": session["uid"],
+                "email": session["email"],
+                "email_verified": True,
+                "displayName": session.get("name", "Verified Journaler"),
+                "admin": is_admin,
+                "role": "admin" if is_admin else "user",
+                "claims": {"auth_type": "registered_session", "admin": is_admin, "role": "admin" if is_admin else "user"}
+            }
+        else:
+            _verified_sessions.pop(token, None)
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Session expired. Please sign in again."
+            )
+
+    # 2. Firebase ID Token (JWT) verification (header.payload.signature)
+    if token.count(".") == 2:
+        init_firebase_admin()
+        try:
+            decoded = firebase_auth.verify_id_token(token)
+            uid = decoded.get("uid")
+            email = decoded.get("email", "")
+            if uid:
+                is_admin = bool(
+                    decoded.get("admin") is True
+                    or decoded.get("role") == "admin"
+                    or email in ADMIN_IDENTIFIERS
+                )
+                return {
+                    "uid": uid,
+                    "email": email or f"{uid}@mindreflect.app",
+                    "email_verified": decoded.get("email_verified", True),
+                    "displayName": decoded.get("name") or email.split("@")[0] if email else "Verified Journaler",
+                    "admin": is_admin,
+                    "role": "admin" if is_admin else "user",
+                    "claims": decoded
+                }
+        except Exception as e:
+            print(f"[Auth] Firebase JWT verification failed: {type(e).__name__}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired authentication token."
+            )
+
+    # 3. Dedicated Admin Testing Token (Checked strictly against environment variable)
+    env_admin_secret = os.getenv("ADMIN_SECRET_TOKEN", "").strip()
+    if env_admin_secret and token == env_admin_secret:
+        return {
+            "uid": "admin_primary",
+            "email": "thaiebu785@gmail.com",
+            "email_verified": True,
+            "displayName": "Primary Administrator",
+            "admin": True,
+            "role": "admin",
+            "claims": {"admin": True, "role": "admin"}
+        }
+
+    # Any other token format is strictly REJECTED
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid token format. Please sign in with a valid account."
+    )
+
+
+async def require_admin(
+    current_user: Dict[str, Any] = Security(get_current_user)
+) -> Dict[str, Any]:
+    """
+    Role-Based Access Control Dependency:
+    Verifies user has administrative claims ({admin: true} or role: 'admin').
+    Strictly returns HTTP 403 Forbidden if unauthorized.
+    """
+    is_admin = (
+        current_user.get("admin") is True
+        or current_user.get("role") == "admin"
+        or current_user.get("email") in ADMIN_IDENTIFIERS
+    )
+    if not is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"HTTP 403 Forbidden: Administrator access required. Account ({current_user.get('email') or current_user.get('uid')}) lacks admin privileges."
+        )
+    return current_user

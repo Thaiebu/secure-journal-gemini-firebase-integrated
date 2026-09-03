@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional, Literal
+from typing import List, Optional, Literal, Any
 
 class ChatMessage(BaseModel):
     id: Optional[str] = Field(default="", max_length=128)
@@ -53,29 +53,42 @@ class SaveSessionResponse(BaseModel):
     insights: Optional[AIInsights] = None
     modelUsed: Optional[str] = None
 
-class SendOtpRequest(BaseModel):
+class SignUpRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100, description="User full name")
     email: str = Field(..., min_length=3, max_length=254, description="User email address")
-    name: Optional[str] = Field(default="", max_length=100, description="User display name")
-    mode: Optional[Literal["signup", "signin"]] = Field(default="signup", description="Auth flow mode")
+    password: str = Field(..., min_length=6, max_length=128, description="Account password (min 6 chars)")
 
-class SendOtpResponse(BaseModel):
+class SignInRequest(BaseModel):
+    email: str = Field(..., min_length=3, max_length=254, description="User email address")
+    password: str = Field(..., min_length=1, max_length=128, description="Account password")
+
+class AuthResponse(BaseModel):
     status: str
     message: str
-    email: str
-    expiresInSeconds: int
-    devOtpCode: Optional[str] = None
-
-class VerifyOtpRequest(BaseModel):
-    email: str = Field(..., min_length=3, max_length=254)
-    otp: str = Field(..., min_length=4, max_length=10, description="6-digit verification code")
-    name: Optional[str] = Field(default="", max_length=100)
-
-class VerifyOtpResponse(BaseModel):
-    status: str
-    message: str
-    customToken: Optional[str] = None
     uid: str
     email: str
     displayName: Optional[str] = None
-    accessLink: str
+    customToken: Optional[str] = None
+    admin: bool = False
+    role: str = "user"
+
+class JournalLocation(BaseModel):
+    name: Optional[str] = Field(default="Pinned Spot", max_length=150)
+    address: Optional[str] = Field(default=None, max_length=250)
+    lat: Optional[float] = Field(default=0.0)
+    lng: Optional[float] = Field(default=0.0)
+    placeId: Optional[str] = Field(default=None, max_length=200)
+    formattedAddress: Optional[str] = Field(default=None, max_length=250)
+
+class CreateJournalRequest(BaseModel):
+    title: Optional[str] = Field(default="Untitled Reflection", max_length=300)
+    content: str = Field(..., min_length=1, max_length=50000, description="Journal reflection text")
+    mood: Optional[str] = Field(default="Reflective", max_length=50)
+    tags: Optional[List[str]] = Field(default_factory=list, max_length=20)
+    conversation: Optional[List[ChatMessage]] = Field(default_factory=list, max_length=100)
+    generateInsights: Optional[bool] = Field(default=True)
+    location: Optional[JournalLocation] = None
+    pinned: Optional[bool] = False
+    journalId: Optional[str] = Field(default=None, max_length=128)
+    createdAt: Optional[Any] = None
 

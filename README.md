@@ -120,7 +120,7 @@ gcloud run deploy mindreflect-app \
 | Test Case | User Interaction / Trigger | Expected Result |
 | :--- | :--- | :--- |
 | **TC-01: Federated Google Auth** | Click "Continue with Google" button. | Firebase popup opens; upon success, authenticates user, sets owner session, and routes to Studio dashboard. |
-| **TC-02: Passwordless OTP Flow** | Enter email & click "Send Code". Enter received 6-digit code. | Dispatches OTP via `/api/auth/send-otp`, verifies code via `/api/auth/verify-otp`, exchanges token, and grants secure session. |
+| **TC-02: Zero-Trust Email/Password Auth** | Enter Name, Email & Password in Sign Up/Sign In tab. | Creates account via secure PBKDF2 cryptographic hashing / Firebase Auth, issues signed custom token, and authenticates session. |
 | **TC-03: Real-Time Journaling** | Enter Title, Content, select Mood & Tags in Studio. | Text streams to state; auto-save triggers within 2.5s with "Saved to Firestore" indicator. |
 | **TC-04: Location Pinning (Google Maps)** | Search or click "Detect My Location" or type a place name in the Location Pin bar. | Pin displays formatted address and coordinates, updates marker on the Places Map, and sanitizes payload for Firestore. |
 | **TC-05: Multi-Turn Thought Partner** | Select reflection mode (e.g. "Reflective Inquiry"), send a reflection message. | Backend calls Gemini fallback ladder; streams empathetic response and logs interaction to `/users/{uid}/interactions`. |
