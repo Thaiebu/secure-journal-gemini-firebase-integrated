@@ -45,7 +45,14 @@ export const ThemeToggle: React.FC = () => {
   );
 
   return (
-    <div className="relative inline-flex items-center space-x-1.5" ref={panelRef}>
+    <div
+      className="relative inline-flex items-center p-0.5 rounded-xl border shadow-2xs shrink-0 transition-colors"
+      style={{
+        backgroundColor: 'var(--color-surface)',
+        borderColor: 'var(--color-border)',
+      }}
+      ref={panelRef}
+    >
       {/* 1. Direct Quick Toggle Button (Light/Dark Switch) */}
       <button
         id="btn-theme-toggle"
@@ -54,12 +61,8 @@ export const ThemeToggle: React.FC = () => {
         onClick={toggleMode}
         title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
         aria-label={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-        className="group relative inline-flex items-center justify-center w-9 h-9 rounded-xl transition-all duration-200 cursor-pointer shadow-xs active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/70 focus-visible:ring-offset-2"
+        className="relative inline-flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-lg transition-all duration-200 cursor-pointer active:scale-95 hover:bg-amber-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/70"
         style={{
-          backgroundColor: 'var(--color-surface)',
-          borderColor: 'var(--color-border)',
-          borderWidth: '1px',
-          borderStyle: 'solid',
           color: 'var(--color-text)',
         }}
       >
@@ -70,14 +73,14 @@ export const ThemeToggle: React.FC = () => {
         {/* Smooth Rotation/Fade Icon Animation */}
         <div className="relative w-4 h-4 flex items-center justify-center overflow-hidden">
           <Sun
-            className={`w-4 h-4 text-amber-500 transition-all duration-200 transform ${
+            className={`w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-500 transition-all duration-200 transform ${
               isDark
                 ? 'opacity-100 rotate-0 scale-100'
                 : 'opacity-0 -rotate-90 scale-50 absolute pointer-events-none'
             }`}
           />
           <Moon
-            className={`w-4 h-4 text-amber-600 dark:text-amber-400 transition-all duration-200 transform ${
+            className={`w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-600 dark:text-amber-400 transition-all duration-200 transform ${
               !isDark
                 ? 'opacity-100 rotate-0 scale-100'
                 : 'opacity-0 rotate-90 scale-50 absolute pointer-events-none'
@@ -86,7 +89,13 @@ export const ThemeToggle: React.FC = () => {
         </div>
       </button>
 
-      {/* 2. Theme Palette Floating Panel Trigger */}
+      {/* Subtle Divider */}
+      <div
+        className="w-[1px] h-3.5 sm:h-4 mx-0.5 shrink-0 opacity-40"
+        style={{ backgroundColor: 'var(--color-border)' }}
+      />
+
+      {/* 2. Theme Palette Panel Trigger */}
       <button
         id="btn-theme-suggestions-menu"
         type="button"
@@ -96,15 +105,11 @@ export const ThemeToggle: React.FC = () => {
         aria-controls="theme-studio-panel"
         title="Appearance & Theme Studio"
         aria-label="Appearance & Theme Studio"
-        className={`group inline-flex items-center space-x-1.5 h-9 px-2.5 rounded-xl text-xs font-semibold transition-all duration-200 cursor-pointer shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/70 focus-visible:ring-offset-2 ${
-          isOpen ? 'ring-1 ring-amber-500/50' : ''
+        className={`inline-flex items-center space-x-1 h-7 sm:h-8 px-1.5 sm:px-2 rounded-lg text-xs font-semibold transition-all duration-200 cursor-pointer hover:bg-amber-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/70 ${
+          isOpen ? 'bg-amber-500/15 text-amber-500' : ''
         }`}
         style={{
-          backgroundColor: 'var(--color-surface)',
-          borderColor: isOpen ? 'var(--color-accent)' : 'var(--color-border)',
-          borderWidth: '1px',
-          borderStyle: 'solid',
-          color: 'var(--color-text)',
+          color: isOpen ? 'var(--color-accent)' : 'var(--color-text)',
         }}
       >
         <Palette className="w-3.5 h-3.5 text-amber-500 transition-transform group-hover:rotate-12 duration-200" />
@@ -119,7 +124,7 @@ export const ThemeToggle: React.FC = () => {
           id="theme-studio-panel"
           role="dialog"
           aria-label="Appearance settings"
-          className="absolute right-0 top-full mt-2 w-80 p-3 rounded-2xl shadow-xl border z-50 backdrop-blur-md animate-in fade-in slide-in-from-top-1.5 duration-150"
+          className="absolute right-0 top-full mt-2 w-72 sm:w-80 max-w-[calc(100vw-1.5rem)] p-3 rounded-2xl shadow-2xl border z-50 backdrop-blur-md animate-in fade-in slide-in-from-top-1.5 duration-150"
           style={{
             backgroundColor: 'var(--color-surface)',
             borderColor: 'var(--color-border)',

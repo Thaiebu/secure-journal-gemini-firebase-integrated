@@ -387,3 +387,12 @@
 .font-serif-display {
   font-family: Verdana, Geneva, Tahoma, sans-serif;
 }
+
+/* Hide scrollbar for Chrome, Safari, Opera and IE/Edge/Firefox */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
