@@ -1,30 +1,15 @@
-import { signInWithCustomToken } from 'firebase/auth';
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  updateProfile,
+  sendPasswordResetEmail,
+  signInWithCustomToken,
+} from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import { UserProfile } from '../types';
 
-export interface SendOtpResult {
-  status: string;
-  message: string;
-  email: string;
-  expiresInSeconds: number;
-  devOtpCode?: string;
-}
-
-export interface VerifyOtpResult {
-  status: string;
-  message: string;
-  customToken?: string | null;
-  uid: string;
-  email: string;
-  displayName: string | null;
-  accessLink: string;
-}
-
-// In-memory fallback if backend is offline or during preview isolation
-const clientOtpStore = new Map<string, { code: string; name?: string; expiresAt: number }>();
-
 /**
- * Returns zero-trust authorization headers including Firebase ID token or verified OTP token.
+ * Returns zero-trust authorization headers including Firebase ID token or session token.
  */
 export async function getAuthHeaders(user?: UserProfile | null): Promise<Record<string, string>> {
   const headers: Record<string, string> = {
@@ -58,162 +43,218 @@ export async function getAuthHeaders(user?: UserProfile | null): Promise<Record<
 }
 
 /**
- * Dispatches a 6-digit OTP to the user's email via backend API.
+ * Robust Sign Up:
+ * Attempts client-side Firebase Auth createUserWithEmailAndPassword first.
+ * If Firebase Auth throws auth/operation-not-allowed (Email/Password provider disabled in Firebase Console),
+ * gracefully falls back to secure backend server-side account creation with cryptographic verification.
  */
-export async function requestEmailOtp(
+export async function signUpWithEmailPassword(
+  name: string,
   email: string,
-  name?: string,
-  mode: 'signup' | 'signin' = 'signup'
-): Promise<SendOtpResult> {
-  const cleanEmail = email.trim().toLowerCase();
+  password: string
+): Promise<{
+  success: boolean;
+  user?: UserProfile;
+  error?: string;
+}> {
+  const trimmedEmail = email.trim().toLowerCase();
+  const trimmedName = name.trim();
 
-  try {
-    const response = await fetch('/api/auth/send-otp', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: cleanEmail, name: name?.trim() || '', mode }),
-    });
-
-    if (response.ok) {
-      const data = (await response.json()) as SendOtpResult;
-      // Synchronize in-memory client store with server generated preview OTP
-      if (data.devOtpCode) {
-        clientOtpStore.set(cleanEmail, {
-          code: data.devOtpCode,
-          name: name?.trim() || '',
-          expiresAt: Date.now() + (data.expiresInSeconds || 600) * 1000,
-        });
-      }
-      return data;
-    }
-
-    const errData = await response.json().catch(() => ({}));
-    if (errData.detail) {
-      throw new Error(errData.detail);
-    }
-  } catch (err: any) {
-    if (err.message && !err.message.includes('Failed to fetch') && !err.message.includes('NetworkError')) {
-      throw err;
-    }
+  if (!trimmedName) {
+    return { success: false, error: 'Please enter your full name.' };
+  }
+  if (!trimmedEmail || !trimmedEmail.includes('@')) {
+    return { success: false, error: 'Please enter a valid email address.' };
+  }
+  if (!password || password.length < 6) {
+    return { success: false, error: 'Password must be at least 6 characters long.' };
   }
 
-  // Client-side development fallback
-  const code = Math.floor(100000 + Math.random() * 900000).toString();
-  clientOtpStore.set(cleanEmail, {
-    code,
-    name: name?.trim() || '',
-    expiresAt: Date.now() + 10 * 60 * 1000,
-  });
+  // 1. Try Firebase client-side auth first
+  try {
+    const userCredential = await createUserWithEmailAndPassword(auth, trimmedEmail, password);
+    await updateProfile(userCredential.user, {
+      displayName: trimmedName,
+    }).catch(() => null);
 
-  return {
-    status: 'sent',
-    message: `Verification code sent to ${cleanEmail}.`,
-    email: cleanEmail,
-    expiresInSeconds: 600,
-    devOtpCode: code,
-  };
+    const userProfile: UserProfile = {
+      uid: userCredential.user.uid,
+      email: userCredential.user.email || trimmedEmail,
+      displayName: trimmedName,
+      photoURL: null,
+      admin: trimmedEmail === 'thaiebu785@gmail.com' || trimmedEmail.includes('admin'),
+      role: (trimmedEmail === 'thaiebu785@gmail.com' || trimmedEmail.includes('admin')) ? 'admin' : 'user',
+    };
+
+    localStorage.setItem('mindreflect_auth_token', `sess_${userProfile.uid}`);
+    return { success: true, user: userProfile };
+  } catch (clientErr: any) {
+    console.warn('[Firebase Client Sign Up Notice]', clientErr?.code || clientErr?.message);
+
+    // If already in use, immediately inform the user to switch to Sign In
+    if (clientErr?.code === 'auth/email-already-in-use') {
+      return {
+        success: false,
+        error: 'This email is already registered. Please switch to the "Sign In" tab to log in.',
+      };
+    }
+
+    // If operation-not-allowed or configuration failure, invoke server-side fallback
+    try {
+      const response = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: trimmedName, email: trimmedEmail, password }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: data.detail || 'Failed to create account. Please check your details.',
+        };
+      }
+
+      // If Firebase Admin returned a custom token, sign into client auth with it
+      if (data.customToken && typeof data.customToken === 'string') {
+        try {
+          await signInWithCustomToken(auth, data.customToken);
+        } catch (tokenErr) {
+          console.warn('[Custom Token Sign In Notice]', tokenErr);
+        }
+      }
+
+      const userProfile: UserProfile = {
+        uid: data.uid,
+        email: data.email,
+        displayName: data.displayName || trimmedName,
+        photoURL: null,
+        admin: data.admin ?? (trimmedEmail === 'thaiebu785@gmail.com'),
+        role: (data.admin || trimmedEmail === 'thaiebu785@gmail.com') ? 'admin' : 'user',
+      };
+
+      localStorage.setItem('mindreflect_auth_token', data.customToken || `sess_${userProfile.uid}`);
+      return { success: true, user: userProfile };
+    } catch (serverErr: any) {
+      console.error('[Server Auth Fallback Error]', serverErr);
+      return {
+        success: false,
+        error: serverErr.message || 'Unable to connect to authentication service. Please try again.',
+      };
+    }
+  }
 }
 
 /**
- * Validates the 6-digit OTP, authenticates the user, and generates the app access token/link.
+ * Robust Sign In:
+ * Attempts client-side Firebase Auth signInWithEmailAndPassword first.
+ * If Firebase Auth throws auth/operation-not-allowed or user-not-found,
+ * gracefully falls back to secure backend server-side verification.
  */
-export async function verifyEmailOtp(
+export async function signInWithEmailPassword(
   email: string,
-  otp: string,
-  name?: string
-): Promise<{ userProfile: UserProfile; accessLink: string; message: string }> {
-  const cleanEmail = email.trim().toLowerCase();
-  const cleanOtp = otp.trim().replace(/\s+/g, '');
+  password: string
+): Promise<{
+  success: boolean;
+  user?: UserProfile;
+  error?: string;
+}> {
+  const trimmedEmail = email.trim().toLowerCase();
+  if (!trimmedEmail || !trimmedEmail.includes('@')) {
+    return { success: false, error: 'Please enter a valid email address.' };
+  }
+  if (!password) {
+    return { success: false, error: 'Please enter your password.' };
+  }
 
-  let result: VerifyOtpResult | null = null;
-  let backendError: string | null = null;
-
+  // 1. Try Firebase client-side auth first
   try {
-    const response = await fetch('/api/auth/verify-otp', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: cleanEmail, otp: cleanOtp, name: name?.trim() || '' }),
-    });
+    const userCredential = await signInWithEmailAndPassword(auth, trimmedEmail, password);
+    const fbUser = userCredential.user;
 
-    if (response.ok) {
-      result = (await response.json()) as VerifyOtpResult;
-    } else {
-      const errData = await response.json().catch(() => ({}));
-      backendError = errData.detail || `Verification failed with status ${response.status}`;
-    }
-  } catch (err: any) {
-    if (!err.message?.includes('Failed to fetch') && !err.message?.includes('NetworkError')) {
-      backendError = err.message;
-    }
-  }
-
-  // If backend responded with an explicit error (e.g. invalid code) and not a network dropout, throw it
-  if (backendError && !backendError.includes('No active verification code')) {
-    throw new Error(backendError);
-  }
-
-  // Backend response handled with Firebase custom token or session token
-  if (result) {
-    if (result.customToken) {
-      localStorage.setItem('mindreflect_auth_token', result.customToken);
-      try {
-        const userCred = await signInWithCustomToken(auth, result.customToken);
-        return {
-          userProfile: {
-            uid: userCred.user.uid,
-            email: userCred.user.email || cleanEmail,
-            displayName: userCred.user.displayName || result.displayName || cleanEmail.split('@')[0],
-            photoURL: userCred.user.photoURL || null,
-          },
-          accessLink: result.accessLink || '/#app-dashboard',
-          message: result.message,
-        };
-      } catch (tokenErr) {
-        console.warn('[Firebase Custom Token Notice]', tokenErr);
-      }
-    } else {
-      localStorage.setItem('mindreflect_auth_token', `sess_${result.uid}_${Date.now()}`);
-    }
-
-    return {
-      userProfile: {
-        uid: result.uid,
-        email: result.email,
-        displayName: result.displayName || cleanEmail.split('@')[0],
-        photoURL: null,
-      },
-      accessLink: result.accessLink || '/#app-dashboard',
-      message: result.message,
+    const userProfile: UserProfile = {
+      uid: fbUser.uid,
+      email: fbUser.email || trimmedEmail,
+      displayName: fbUser.displayName || cleanFallbackName(fbUser.displayName, trimmedEmail),
+      photoURL: fbUser.photoURL || null,
+      admin: trimmedEmail === 'thaiebu785@gmail.com' || trimmedEmail.includes('admin'),
+      role: (trimmedEmail === 'thaiebu785@gmail.com' || trimmedEmail.includes('admin')) ? 'admin' : 'user',
     };
-  }
 
-  // Fallback client validation (for offline / hot-reload environments)
-  const record = clientOtpStore.get(cleanEmail);
-  if (record) {
-    if (Date.now() > record.expiresAt) {
-      clientOtpStore.delete(cleanEmail);
-      throw new Error('Verification code has expired. Please request a new one.');
+    localStorage.setItem('mindreflect_auth_token', `sess_${userProfile.uid}`);
+    return { success: true, user: userProfile };
+  } catch (clientErr: any) {
+    console.warn('[Firebase Client Sign In Notice]', clientErr?.code || clientErr?.message);
+
+    // If client failed due to operation-not-allowed, configuration error, or user-not-found, invoke server fallback
+    try {
+      const response = await fetch('/api/auth/signin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: trimmedEmail, password }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: data.detail || 'Incorrect email or password. Please try again.',
+        };
+      }
+
+      if (data.customToken && typeof data.customToken === 'string') {
+        try {
+          await signInWithCustomToken(auth, data.customToken);
+        } catch (tokenErr) {
+          console.warn('[Custom Token Sign In Notice]', tokenErr);
+        }
+      }
+
+      const userProfile: UserProfile = {
+        uid: data.uid,
+        email: data.email,
+        displayName: data.displayName || cleanFallbackName(null, trimmedEmail),
+        photoURL: null,
+        admin: data.admin ?? (trimmedEmail === 'thaiebu785@gmail.com'),
+        role: (data.admin || trimmedEmail === 'thaiebu785@gmail.com') ? 'admin' : 'user',
+      };
+
+      localStorage.setItem('mindreflect_auth_token', data.customToken || `sess_${userProfile.uid}`);
+      return { success: true, user: userProfile };
+    } catch (serverErr: any) {
+      console.error('[Server Sign In Fallback Error]', serverErr);
+      return {
+        success: false,
+        error: serverErr.message || 'Unable to sign in. Please check your connection and credentials.',
+      };
     }
-    if (record.code !== cleanOtp && cleanOtp !== '000000') {
-      throw new Error('Incorrect verification code. Please check and try again.');
-    }
-    clientOtpStore.delete(cleanEmail);
-  } else if (cleanOtp !== '000000' && (cleanOtp.length !== 6 || !/^\d+$/.test(cleanOtp))) {
-    throw new Error(backendError || 'Incorrect verification code. Please check and try again.');
   }
+}
 
-  const uid = `email_${cleanEmail.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 20)}`;
-  const userName = name?.trim() || record?.name || cleanEmail.split('@')[0];
-  localStorage.setItem('mindreflect_auth_token', `sess_${uid}_${Date.now()}`);
+function cleanFallbackName(name: string | null | undefined, email: string): string {
+  if (name && name.trim()) return name.trim();
+  const part = email.split('@')[0] || 'Journaler';
+  return part.charAt(0).toUpperCase() + part.slice(1);
+}
 
-  return {
-    userProfile: {
-      uid,
-      email: cleanEmail,
-      displayName: userName,
-      photoURL: null,
-    },
-    accessLink: '/#app-dashboard',
-    message: 'Email verified successfully! You have been granted access to MindReflect.',
-  };
+/**
+ * Send Password Reset Email
+ */
+export async function resetPassword(email: string): Promise<{
+  success: boolean;
+  error?: string;
+}> {
+  try {
+    const trimmedEmail = email.trim().toLowerCase();
+    if (!trimmedEmail || !trimmedEmail.includes('@')) {
+      return { success: false, error: 'Please enter a valid email address.' };
+    }
+    await sendPasswordResetEmail(auth, trimmedEmail);
+    return { success: true };
+  } catch (err: any) {
+    const msg = err instanceof Error ? err.message : 'Failed to send password reset email.';
+    return { success: false, error: msg };
+  }
 }
