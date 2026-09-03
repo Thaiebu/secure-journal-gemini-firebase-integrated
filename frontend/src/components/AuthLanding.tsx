@@ -194,38 +194,64 @@ export const AuthLanding: React.FC<AuthLandingProps> = ({
     <div className="min-h-[calc(100vh-4rem)] flex flex-col justify-between py-8 px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto">
       {/* Hero Header */}
       <div className="text-center max-w-3xl mx-auto pt-4 sm:pt-6">
-        <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-semibold mb-5">
-          <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+        <div
+          className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full text-xs font-semibold mb-5 border"
+          style={{
+            backgroundColor: 'var(--color-accent-subtle)',
+            borderColor: 'var(--color-accent)',
+            color: 'var(--color-accent-text)',
+          }}
+        >
+          <Sparkles className="w-3.5 h-3.5" style={{ color: 'var(--color-accent)' }} />
           <span>Mindful AI Reflection & Cloud Firestore</span>
         </div>
 
-        <h1 className="font-serif-display text-4xl sm:text-5xl font-bold text-neutral-100 tracking-tight leading-[1.15]">
+        <h1
+          className="font-serif-display text-4xl sm:text-5xl font-bold tracking-tight leading-[1.15]"
+          style={{ color: 'var(--color-text)', fontFamily: 'Verdana, Geneva, Tahoma, sans-serif' }}
+        >
           A serene sanctuary for your thoughts and growth.
         </h1>
 
-        <p className="mt-4 text-base sm:text-lg text-neutral-400 leading-relaxed font-light max-w-2xl mx-auto">
+        <p
+          className="mt-4 text-base sm:text-lg leading-relaxed font-light max-w-2xl mx-auto"
+          style={{ color: 'var(--color-text-muted)' }}
+        >
           Capture reflections, converse with Gemini 3.6 Flash, and secure your thoughts with isolated Cloud Firestore database storage.
         </p>
       </div>
 
       {/* Authentication Card */}
       <div className="my-8 max-w-md w-full mx-auto">
-        <div className="p-6 sm:p-8 rounded-2xl bg-[#141414] border border-neutral-800 shadow-xl relative overflow-hidden">
+        <div
+          className="p-6 sm:p-8 rounded-2xl border shadow-xl relative overflow-hidden transition-colors"
+          style={{
+            backgroundColor: 'var(--color-surface)',
+            borderColor: 'var(--color-border)',
+          }}
+        >
           {/* Subtle Ambient Glow */}
           <div className="absolute top-0 right-0 -mr-16 -mt-16 w-36 h-36 rounded-full bg-amber-500/5 blur-2xl pointer-events-none" />
 
           {/* Mode Switcher Tabs (Only when not in verification / access step) */}
           {mode !== 'otp-verify' && mode !== 'access-granted' && (
-            <div className="flex p-1 rounded-xl bg-neutral-900 border border-neutral-800 mb-6">
+            <div
+              className="flex p-1 rounded-xl border mb-6 transition-colors"
+              style={{
+                backgroundColor: 'var(--color-surface-elevated)',
+                borderColor: 'var(--color-border)',
+              }}
+            >
               <button
                 type="button"
                 id="tab-auth-signup"
                 onClick={() => handleModeChange('signup')}
-                className={`flex-1 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all cursor-pointer ${
-                  mode === 'signup'
-                    ? 'bg-neutral-800 text-neutral-100 shadow-xs'
-                    : 'text-neutral-400 hover:text-neutral-200'
-                }`}
+                className="flex-1 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all cursor-pointer"
+                style={{
+                  backgroundColor: mode === 'signup' ? 'var(--color-surface)' : 'transparent',
+                  color: mode === 'signup' ? 'var(--color-text)' : 'var(--color-text-muted)',
+                  boxShadow: mode === 'signup' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none',
+                }}
               >
                 Create Account (OTP)
               </button>
@@ -233,11 +259,12 @@ export const AuthLanding: React.FC<AuthLandingProps> = ({
                 type="button"
                 id="tab-auth-signin"
                 onClick={() => handleModeChange('signin')}
-                className={`flex-1 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all cursor-pointer ${
-                  mode === 'signin'
-                    ? 'bg-neutral-800 text-neutral-100 shadow-xs'
-                    : 'text-neutral-400 hover:text-neutral-200'
-                }`}
+                className="flex-1 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all cursor-pointer"
+                style={{
+                  backgroundColor: mode === 'signin' ? 'var(--color-surface)' : 'transparent',
+                  color: mode === 'signin' ? 'var(--color-text)' : 'var(--color-text-muted)',
+                  boxShadow: mode === 'signin' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none',
+                }}
               >
                 Sign In
               </button>
@@ -281,21 +308,21 @@ export const AuthLanding: React.FC<AuthLandingProps> = ({
               </button>
 
               <div className="flex items-center my-5">
-                <div className="flex-1 border-t border-neutral-800" />
-                <span className="px-3 text-xs uppercase tracking-wider text-neutral-500 font-medium">
+                <div className="flex-1 border-t" style={{ borderColor: 'var(--color-border)' }} />
+                <span className="px-3 text-xs uppercase tracking-wider font-medium" style={{ color: 'var(--color-text-muted)' }}>
                   or with email OTP
                 </span>
-                <div className="flex-1 border-t border-neutral-800" />
+                <div className="flex-1 border-t" style={{ borderColor: 'var(--color-border)' }} />
               </div>
 
               <form onSubmit={handleSendOtp} className="space-y-4">
                 {mode === 'signup' && (
                   <div>
-                    <label className="block text-xs font-semibold text-neutral-300 mb-1.5">
+                    <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--color-text)' }}>
                       Full Name
                     </label>
                     <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-neutral-500">
+                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none" style={{ color: 'var(--color-text-muted)' }}>
                         <UserIcon className="w-4 h-4" />
                       </div>
                       <input
@@ -307,18 +334,23 @@ export const AuthLanding: React.FC<AuthLandingProps> = ({
                           if (displayedError) setLocalError(null);
                         }}
                         placeholder="e.g. Alex River"
-                        className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-[#1a1a1a] border border-neutral-800 text-neutral-100 placeholder-neutral-500 text-sm focus:outline-hidden focus:border-amber-500/80 focus:ring-1 focus:ring-amber-500/50 transition-all"
+                        className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border text-sm focus:outline-hidden focus:ring-2 focus:ring-amber-500/20 transition-all"
+                        style={{
+                          backgroundColor: 'var(--color-surface-elevated)',
+                          borderColor: 'var(--color-border)',
+                          color: 'var(--color-text)',
+                        }}
                       />
                     </div>
                   </div>
                 )}
 
                 <div>
-                  <label className="block text-xs font-semibold text-neutral-300 mb-1.5">
+                  <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--color-text)' }}>
                     Email Address
                   </label>
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-neutral-500">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none" style={{ color: 'var(--color-text-muted)' }}>
                       <Mail className="w-4 h-4" />
                     </div>
                     <input
@@ -331,10 +363,15 @@ export const AuthLanding: React.FC<AuthLandingProps> = ({
                         if (displayedError) setLocalError(null);
                       }}
                       placeholder="your.email@example.com"
-                      className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-[#1a1a1a] border border-neutral-800 text-neutral-100 placeholder-neutral-500 text-sm focus:outline-hidden focus:border-amber-500/80 focus:ring-1 focus:ring-amber-500/50 transition-all"
+                      className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border text-sm focus:outline-hidden focus:ring-2 focus:ring-amber-500/20 transition-all"
+                      style={{
+                        backgroundColor: 'var(--color-surface-elevated)',
+                        borderColor: 'var(--color-border)',
+                        color: 'var(--color-text)',
+                      }}
                     />
                   </div>
-                  <p className="mt-1 text-[11px] text-neutral-500">
+                  <p className="mt-1 text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
                     We will send a 6-digit One-Time Password (OTP) to this email to verify access.
                   </p>
                 </div>
@@ -370,31 +407,38 @@ export const AuthLanding: React.FC<AuthLandingProps> = ({
           {/* STEP 2: OTP Verification Form */}
           {mode === 'otp-verify' && (
             <div>
-              <div className="flex items-center justify-between mb-4 pb-2 border-b border-neutral-800">
+              <div className="flex items-center justify-between mb-4 pb-2 border-b" style={{ borderColor: 'var(--color-border)' }}>
                 <div className="flex items-center space-x-2">
-                  <KeyRound className="w-4 h-4 text-amber-400" />
-                  <span className="text-sm font-semibold text-neutral-200">Enter Verification Code</span>
+                  <KeyRound className="w-4 h-4" style={{ color: 'var(--color-accent)' }} />
+                  <span className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>Enter Verification Code</span>
                 </div>
                 <button
                   type="button"
                   onClick={() => handleModeChange('signup')}
-                  className="text-xs text-amber-400 hover:text-amber-300 transition-colors cursor-pointer"
+                  className="text-xs transition-colors cursor-pointer hover:underline font-semibold"
+                  style={{ color: 'var(--color-accent-text)' }}
                 >
                   Change Email
                 </button>
               </div>
 
-              <p className="text-xs text-neutral-400 mb-4 leading-relaxed">
-                We sent a 6-digit code to <strong className="text-neutral-200">{email}</strong>. Enter the code below to verify your account and obtain your access link.
+              <p className="text-xs mb-4 leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
+                We sent a 6-digit code to <strong style={{ color: 'var(--color-text)' }}>{email}</strong>. Enter the code below to verify your account and obtain your access link.
               </p>
 
               {/* Dev / Preview OTP Helper (Ensures user is never blocked) */}
               {activeOtpSession?.devOtpCode && (
-                <div className="mb-5 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between">
+                <div
+                  className="mb-5 p-3 rounded-xl border flex items-center justify-between"
+                  style={{
+                    backgroundColor: 'var(--color-accent-subtle)',
+                    borderColor: 'var(--color-accent)',
+                  }}
+                >
                   <div className="flex items-center space-x-2">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                    <span className="text-xs text-amber-300 font-medium">
-                      In-App Preview OTP: <strong className="tracking-widest font-mono text-amber-200">{activeOtpSession.devOtpCode}</strong>
+                    <Sparkles className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--color-accent)' }} />
+                    <span className="text-xs font-medium" style={{ color: 'var(--color-accent-text)' }}>
+                      In-App Preview OTP: <strong className="tracking-widest font-mono text-base">{activeOtpSession.devOtpCode}</strong>
                     </span>
                   </div>
                   <button
@@ -403,7 +447,12 @@ export const AuthLanding: React.FC<AuthLandingProps> = ({
                       const chars = activeOtpSession.devOtpCode!.split('');
                       setOtpCode(chars);
                     }}
-                    className="text-[11px] px-2 py-0.5 rounded-md bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 font-semibold transition-colors cursor-pointer"
+                    className="text-[11px] px-2.5 py-1 rounded-md font-semibold transition-colors cursor-pointer border"
+                    style={{
+                      backgroundColor: 'var(--color-surface)',
+                      borderColor: 'var(--color-accent)',
+                      color: 'var(--color-accent-text)',
+                    }}
                   >
                     Auto-fill
                   </button>
@@ -412,7 +461,7 @@ export const AuthLanding: React.FC<AuthLandingProps> = ({
 
               <form onSubmit={handleVerifyOtp} className="space-y-5">
                 <div>
-                  <label className="block text-xs font-semibold text-neutral-300 mb-2 text-center">
+                  <label className="block text-xs font-semibold mb-2 text-center" style={{ color: 'var(--color-text)' }}>
                     6-Digit Security Code
                   </label>
                   <div className="flex justify-between gap-2 sm:gap-2.5">
@@ -426,20 +475,25 @@ export const AuthLanding: React.FC<AuthLandingProps> = ({
                         value={digit}
                         onChange={(e) => handleOtpChange(idx, e.target.value)}
                         onKeyDown={(e) => handleOtpKeyDown(idx, e)}
-                        className="w-11 h-12 sm:w-12 sm:h-13 text-center text-xl font-bold font-mono rounded-xl bg-[#1a1a1a] border border-neutral-700 text-amber-300 focus:outline-hidden focus:border-amber-500 focus:ring-2 focus:ring-amber-500/40 transition-all"
+                        className="w-11 h-12 sm:w-12 sm:h-13 text-center text-xl font-bold font-mono rounded-xl border focus:outline-hidden focus:ring-2 focus:ring-amber-500/40 transition-all"
+                        style={{
+                          backgroundColor: 'var(--color-surface-elevated)',
+                          borderColor: 'var(--color-border)',
+                          color: 'var(--color-accent-text)',
+                        }}
                       />
                     ))}
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between text-xs text-neutral-400">
+                <div className="flex items-center justify-between text-xs" style={{ color: 'var(--color-text-muted)' }}>
                   <span>
                     {countdown > 0 ? (
                       `Code expires in ${Math.floor(countdown / 60)}:${(countdown % 60)
                         .toString()
                         .padStart(2, '0')}`
                     ) : (
-                      <span className="text-rose-400">Code expired</span>
+                      <span className="text-rose-500 dark:text-rose-400">Code expired</span>
                     )}
                   </span>
 
@@ -447,7 +501,8 @@ export const AuthLanding: React.FC<AuthLandingProps> = ({
                     type="button"
                     onClick={handleSendOtp}
                     disabled={isSubmitting}
-                    className="inline-flex items-center space-x-1 text-amber-400 hover:text-amber-300 disabled:opacity-50 transition-colors cursor-pointer"
+                    className="inline-flex items-center space-x-1 disabled:opacity-50 transition-colors cursor-pointer hover:underline font-semibold"
+                    style={{ color: 'var(--color-accent-text)' }}
                   >
                     <RefreshCw className="w-3 h-3" />
                     <span>Resend Code</span>
@@ -488,35 +543,48 @@ export const AuthLanding: React.FC<AuthLandingProps> = ({
               </div>
 
               <div>
-                <h3 className="text-xl font-bold text-neutral-100 font-serif-display">
+                <h3 className="text-xl font-bold font-serif-display" style={{ color: 'var(--color-text)' }}>
                   Email Verified & Access Granted!
                 </h3>
-                <p className="mt-1 text-xs text-neutral-400">
-                  Welcome to MindReflect, <strong className="text-neutral-200">{verifiedUser.displayName || verifiedUser.email}</strong>.
+                <p className="mt-1 text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                  Welcome to MindReflect, <strong style={{ color: 'var(--color-text)' }}>{verifiedUser.displayName || verifiedUser.email}</strong>.
                 </p>
               </div>
 
               {/* Verified Direct Access Link Box */}
-              <div className="p-3.5 rounded-xl bg-neutral-900 border border-neutral-800 text-left space-y-2">
-                <div className="flex items-center justify-between text-xs text-neutral-400">
-                  <span className="font-semibold text-neutral-300 flex items-center space-x-1.5">
-                    <Shield className="w-3.5 h-3.5 text-emerald-400" />
+              <div
+                className="p-3.5 rounded-xl border text-left space-y-2 transition-colors"
+                style={{
+                  backgroundColor: 'var(--color-surface-elevated)',
+                  borderColor: 'var(--color-border)',
+                }}
+              >
+                <div className="flex items-center justify-between text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                  <span className="font-semibold flex items-center space-x-1.5" style={{ color: 'var(--color-text)' }}>
+                    <Shield className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
                     <span>Your Verified Access URL</span>
                   </span>
-                  <span className="text-[10px] text-emerald-400 font-medium">Active & Authenticated</span>
+                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">Active & Authenticated</span>
                 </div>
 
-                <div className="flex items-center space-x-2 bg-[#121212] p-2 rounded-lg border border-neutral-800/80">
-                  <span className="flex-1 text-xs font-mono text-neutral-300 truncate">
+                <div
+                  className="flex items-center space-x-2 p-2 rounded-lg border"
+                  style={{
+                    backgroundColor: 'var(--color-surface)',
+                    borderColor: 'var(--color-border)',
+                  }}
+                >
+                  <span className="flex-1 text-xs font-mono truncate" style={{ color: 'var(--color-text)' }}>
                     {accessUrl || window.location.href}
                   </span>
                   <button
                     type="button"
                     onClick={handleCopyLink}
                     title="Copy Access Link"
-                    className="p-1.5 rounded-md hover:bg-neutral-800 text-neutral-400 hover:text-neutral-200 transition-colors cursor-pointer"
+                    className="p-1.5 rounded-md transition-colors cursor-pointer hover:opacity-80"
+                    style={{ color: 'var(--color-text-muted)' }}
                   >
-                    {copiedLink ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                    {copiedLink ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
@@ -535,14 +603,20 @@ export const AuthLanding: React.FC<AuthLandingProps> = ({
           )}
 
           {/* Privacy & Security Footnote */}
-          <div className="mt-5 pt-4 border-t border-neutral-800/60 flex items-center justify-center space-x-4 text-[11px] text-neutral-400">
+          <div
+            className="mt-5 pt-4 border-t flex items-center justify-center space-x-4 text-[11px]"
+            style={{
+              borderColor: 'var(--color-border)',
+              color: 'var(--color-text-muted)',
+            }}
+          >
             <span className="flex items-center space-x-1">
-              <Lock className="w-3 h-3 text-emerald-400" />
+              <Lock className="w-3 h-3 text-emerald-500 dark:text-emerald-400" />
               <span>Owner-bound Firestore</span>
             </span>
             <span>&bull;</span>
             <span className="flex items-center space-x-1">
-              <Shield className="w-3 h-3 text-amber-400" />
+              <Shield className="w-3 h-3 text-amber-500 dark:text-amber-400" />
               <span>Zero-Trust Verified</span>
             </span>
           </div>
@@ -551,45 +625,63 @@ export const AuthLanding: React.FC<AuthLandingProps> = ({
 
       {/* Feature Highlights Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5 my-6">
-        <div className="p-5 rounded-2xl bg-[#141414] border border-neutral-800/80 shadow-xs hover:border-amber-500/40 transition-colors">
+        <div
+          className="p-5 rounded-2xl border shadow-xs transition-colors"
+          style={{
+            backgroundColor: 'var(--color-surface)',
+            borderColor: 'var(--color-border)',
+          }}
+        >
           <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center mb-3">
             <BrainCircuit className="w-4 h-4" />
           </div>
-          <h3 className="text-sm font-bold text-neutral-100 mb-1.5">
+          <h3 className="text-sm font-bold mb-1.5" style={{ color: 'var(--color-text)' }}>
             Multi-Turn AI Dialogue
           </h3>
-          <p className="text-xs text-neutral-400 leading-relaxed">
+          <p className="text-xs leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
             Converse naturally with Gemini 3.6 Flash. Brainstorm ideas, dissect challenges, or reflect deeply on your daily experiences.
           </p>
         </div>
 
-        <div className="p-5 rounded-2xl bg-[#141414] border border-neutral-800/80 shadow-xs hover:border-emerald-500/40 transition-colors">
+        <div
+          className="p-5 rounded-2xl border shadow-xs transition-colors"
+          style={{
+            backgroundColor: 'var(--color-surface)',
+            borderColor: 'var(--color-border)',
+          }}
+        >
           <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mb-3">
             <Shield className="w-4 h-4" />
           </div>
-          <h3 className="text-sm font-bold text-neutral-100 mb-1.5">
+          <h3 className="text-sm font-bold mb-1.5" style={{ color: 'var(--color-text)' }}>
             Firestore Data Isolation
           </h3>
-          <p className="text-xs text-neutral-400 leading-relaxed">
+          <p className="text-xs leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
             Every entry is strictly scoped to your authenticated Firebase UID. Other users cannot query, read, or tamper with your reflections.
           </p>
         </div>
 
-        <div className="p-5 rounded-2xl bg-[#141414] border border-neutral-800/80 shadow-xs hover:border-purple-500/40 transition-colors">
+        <div
+          className="p-5 rounded-2xl border shadow-xs transition-colors"
+          style={{
+            backgroundColor: 'var(--color-surface)',
+            borderColor: 'var(--color-border)',
+          }}
+        >
           <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/30 text-purple-400 flex items-center justify-center mb-3">
             <BookMarked className="w-4 h-4" />
           </div>
-          <h3 className="text-sm font-bold text-neutral-100 mb-1.5">
+          <h3 className="text-sm font-bold mb-1.5" style={{ color: 'var(--color-text)' }}>
             Automatic Insights & Summary
           </h3>
-          <p className="text-xs text-neutral-400 leading-relaxed">
+          <p className="text-xs leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
             Generate synthesis, emotional tone detection, key realizations, and follow-up inquiry questions with resilient model fallback.
           </p>
         </div>
       </div>
 
       {/* Footer */}
-      <footer className="mt-4 text-center text-xs text-neutral-500">
+      <footer className="mt-4 text-center text-xs" style={{ color: 'var(--color-text-muted)' }}>
         MindReflect &copy; {new Date().getFullYear()} &bull; Google AI Studio &bull; Cloud Firestore
       </footer>
     </div>

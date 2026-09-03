@@ -97,73 +97,81 @@ export const AICompanionChat: React.FC<AICompanionChatProps> = ({
   ];
 
   return (
-    <div className="flex flex-col h-full bg-[#141414] rounded-2xl border border-neutral-800 shadow-xs overflow-hidden">
+    <div
+      className="flex flex-col h-full rounded-2xl border shadow-xs overflow-hidden transition-colors"
+      style={{
+        backgroundColor: 'var(--color-surface)',
+        borderColor: 'var(--color-border)',
+      }}
+    >
       {/* Header */}
-      <div className="p-3.5 sm:p-4 bg-[#111111] border-b border-neutral-800 flex flex-wrap items-center justify-between gap-2">
+      <div
+        className="p-3.5 sm:p-4 border-b flex flex-wrap items-center justify-between gap-2 transition-colors"
+        style={{
+          backgroundColor: 'var(--color-surface-elevated)',
+          borderColor: 'var(--color-border)',
+        }}
+      >
         <div className="flex items-center space-x-2">
-          <div className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center">
+          <div className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-500 flex items-center justify-center">
             <Sparkles className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="text-xs sm:text-sm font-bold text-neutral-100">
+            <h3
+              className="text-xs sm:text-sm font-bold"
+              style={{ color: 'var(--color-text)' }}
+            >
               Gemini AI Thought Partner
             </h3>
-            <p className="text-[10px] text-neutral-400">
+            <p className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
               Multi-turn conversational reflections
             </p>
           </div>
         </div>
 
         {/* Reflection Mode Chips */}
-        <div className="flex items-center gap-1 bg-neutral-900 border border-neutral-800 p-1 rounded-lg text-[11px]">
-          <button
-            type="button"
-            onClick={() => onSelectMode('reflective')}
-            className={`px-2 py-0.5 rounded-md font-medium transition-all cursor-pointer ${
-              reflectionMode === 'reflective'
-                ? 'bg-neutral-800 text-amber-300 shadow-xs font-semibold'
-                : 'text-neutral-400 hover:text-neutral-200'
-            }`}
-          >
-            Reflective
-          </button>
-          <button
-            type="button"
-            onClick={() => onSelectMode('brainstorm')}
-            className={`px-2 py-0.5 rounded-md font-medium transition-all cursor-pointer ${
-              reflectionMode === 'brainstorm'
-                ? 'bg-neutral-800 text-amber-300 shadow-xs font-semibold'
-                : 'text-neutral-400 hover:text-neutral-200'
-            }`}
-          >
-            Brainstorm
-          </button>
-          <button
-            type="button"
-            onClick={() => onSelectMode('actionable')}
-            className={`px-2 py-0.5 rounded-md font-medium transition-all cursor-pointer ${
-              reflectionMode === 'actionable'
-                ? 'bg-neutral-800 text-amber-300 shadow-xs font-semibold'
-                : 'text-neutral-400 hover:text-neutral-200'
-            }`}
-          >
-            Actionable
-          </button>
+        <div
+          className="flex items-center gap-1 p-1 rounded-lg text-[11px] border"
+          style={{
+            backgroundColor: 'var(--color-surface)',
+            borderColor: 'var(--color-border)',
+          }}
+        >
+          {(['reflective', 'brainstorm', 'actionable'] as const).map((mode) => {
+            const isActive = reflectionMode === mode;
+            return (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => onSelectMode(mode)}
+                className={`px-2 py-0.5 rounded-md font-medium transition-all cursor-pointer capitalize border ${
+                  isActive ? 'font-semibold shadow-xs' : 'hover:opacity-80'
+                }`}
+                style={{
+                  backgroundColor: isActive ? 'var(--color-surface-elevated)' : 'transparent',
+                  color: isActive ? 'var(--color-accent-text)' : 'var(--color-text-muted)',
+                  borderColor: isActive ? 'var(--color-border)' : 'transparent',
+                }}
+              >
+                {mode}
+              </button>
+            );
+          })}
         </div>
       </div>
 
       {/* Messages List */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-[260px] max-h-[480px]">
         {messages.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-center p-6 text-neutral-400 space-y-4">
-            <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center">
+          <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-500 flex items-center justify-center">
               <Bot className="w-6 h-6" />
             </div>
             <div className="max-w-xs">
-              <p className="text-sm font-semibold text-neutral-100">
+              <p className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
                 Start a conversation about your entry
               </p>
-              <p className="text-xs text-neutral-400 mt-1">
+              <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
                 Ask questions, explore underlying thoughts, or click a quick reflection below.
               </p>
             </div>
@@ -180,11 +188,16 @@ export const AICompanionChat: React.FC<AICompanionChatProps> = ({
                       onSelectMode(qp.mode);
                       onSendMessage(qp.text, qp.mode);
                     }}
-                    className="flex items-center space-x-2 text-left p-2 rounded-xl bg-[#1c1c1c] hover:bg-[#242424] border border-neutral-800 hover:border-amber-500/40 transition-colors text-xs text-neutral-300 cursor-pointer"
+                    className="flex items-center space-x-2 text-left p-2 rounded-xl transition-colors text-xs cursor-pointer border hover:border-amber-500/50"
+                    style={{
+                      backgroundColor: 'var(--color-surface-elevated)',
+                      borderColor: 'var(--color-border)',
+                      color: 'var(--color-text)',
+                    }}
                   >
-                    <Icon className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                    <span className="font-semibold text-neutral-100">{qp.label}:</span>
-                    <span className="truncate text-neutral-400">{qp.text}</span>
+                    <Icon className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                    <span className="font-semibold" style={{ color: 'var(--color-text)' }}>{qp.label}:</span>
+                    <span className="truncate" style={{ color: 'var(--color-text-muted)' }}>{qp.text}</span>
                   </button>
                 );
               })}
@@ -201,35 +214,57 @@ export const AICompanionChat: React.FC<AICompanionChatProps> = ({
                 }`}
               >
                 <div
-                  className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 text-xs ${
+                  className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 text-xs border"
+                  style={
                     isUser
-                      ? 'bg-neutral-800 text-neutral-100 border border-neutral-700'
-                      : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
-                  }`}
+                      ? {
+                          backgroundColor: 'var(--color-surface-elevated)',
+                          borderColor: 'var(--color-border)',
+                          color: 'var(--color-text)',
+                        }
+                      : {
+                          backgroundColor: 'var(--color-accent-subtle)',
+                          borderColor: 'var(--color-accent)',
+                          color: 'var(--color-accent-text)',
+                        }
+                  }
                 >
                   {isUser ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
                 </div>
 
                 <div
-                  className={`relative max-w-[85%] rounded-2xl px-4 py-3 text-xs sm:text-sm ${
+                  className={`relative max-w-[85%] rounded-2xl px-4 py-3 text-xs sm:text-sm border ${
                     isUser
-                      ? 'bg-amber-500 text-neutral-950 font-medium rounded-tr-xs shadow-xs'
-                      : 'bg-[#1c1c1c] border border-neutral-800 text-neutral-200 rounded-tl-xs shadow-2xs'
+                      ? 'bg-amber-500 text-neutral-950 font-medium rounded-tr-xs shadow-xs border-amber-600/30'
+                      : 'rounded-tl-xs shadow-2xs transition-colors'
                   }`}
+                  style={
+                    !isUser
+                      ? {
+                          backgroundColor: 'var(--color-surface-elevated)',
+                          borderColor: 'var(--color-border)',
+                          color: 'var(--color-text)',
+                        }
+                      : undefined
+                  }
                 >
                   {isUser ? (
                     <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
                   ) : (
-                    <div className="prose prose-invert prose-xs max-w-none leading-relaxed text-neutral-200">
+                    <div
+                      className="chat-markdown-content text-xs sm:text-sm leading-relaxed"
+                      style={{ color: 'var(--color-text)' }}
+                    >
                       <ReactMarkdown>{msg.content}</ReactMarkdown>
                     </div>
                   )}
 
                   {/* Actions & Timestamp */}
                   <div
-                    className={`mt-1.5 flex items-center justify-between text-[10px] ${
-                      isUser ? 'text-neutral-800/80 font-medium' : 'text-neutral-500'
-                    }`}
+                    className="mt-1.5 flex items-center justify-between text-[10px]"
+                    style={{
+                      color: isUser ? 'rgba(23, 23, 23, 0.75)' : 'var(--color-text-muted)',
+                    }}
                   >
                     <span>
                       {new Date(msg.timestamp).toLocaleTimeString([], {
@@ -243,17 +278,21 @@ export const AICompanionChat: React.FC<AICompanionChatProps> = ({
                       <button
                         type="button"
                         onClick={() => speak(msg.content, msg.id)}
-                        className={`p-1 rounded-md transition-colors cursor-pointer ${
-                          activeSpeakingId === msg.id
-                            ? 'text-amber-400 bg-amber-500/20'
-                            : isUser
-                            ? 'text-neutral-900 hover:text-neutral-950'
-                            : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800'
-                        }`}
+                        className="p-1 rounded-md transition-colors cursor-pointer"
+                        style={{
+                          color:
+                            activeSpeakingId === msg.id
+                              ? 'var(--color-accent)'
+                              : isUser
+                              ? '#171717'
+                              : 'var(--color-text-muted)',
+                          backgroundColor:
+                            activeSpeakingId === msg.id ? 'var(--color-accent-subtle)' : 'transparent',
+                        }}
                         title={activeSpeakingId === msg.id ? 'Stop audio' : 'Hear message aloud'}
                       >
                         {activeSpeakingId === msg.id ? (
-                          <VolumeX className="w-3.5 h-3.5 animate-pulse text-amber-400" />
+                          <VolumeX className="w-3.5 h-3.5 animate-pulse text-amber-500" />
                         ) : (
                           <Volume2 className="w-3.5 h-3.5" />
                         )}
@@ -263,15 +302,19 @@ export const AICompanionChat: React.FC<AICompanionChatProps> = ({
                       <button
                         type="button"
                         onClick={() => copyToClipboard(msg.content, msg.id)}
-                        className={`p-1 rounded-md transition-colors cursor-pointer ${
-                          isUser
-                            ? 'text-neutral-900 hover:text-neutral-950'
-                            : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800'
-                        }`}
+                        className="p-1 rounded-md transition-colors cursor-pointer"
+                        style={{
+                          color:
+                            copiedId === msg.id
+                              ? '#10b981'
+                              : isUser
+                              ? '#171717'
+                              : 'var(--color-text-muted)',
+                        }}
                         title="Copy text"
                       >
                         {copiedId === msg.id ? (
-                          <Check className="w-3.5 h-3.5 text-emerald-400" />
+                          <Check className="w-3.5 h-3.5 text-emerald-500" />
                         ) : (
                           <Copy className="w-3.5 h-3.5" />
                         )}
@@ -289,14 +332,21 @@ export const AICompanionChat: React.FC<AICompanionChatProps> = ({
             <div className="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/30 flex items-center justify-center text-xs shrink-0">
               <Sparkles className="w-4 h-4 animate-spin text-amber-400" />
             </div>
-            <div className="flex-1 bg-[#1c1c1c] border border-neutral-800 rounded-2xl rounded-tl-xs p-3 text-xs text-neutral-300 flex flex-wrap items-center justify-between gap-2 shadow-2xs">
+            <div
+              className="flex-1 rounded-2xl rounded-tl-xs p-3 text-xs flex flex-wrap items-center justify-between gap-2 shadow-2xs border"
+              style={{
+                backgroundColor: 'var(--color-surface-elevated)',
+                borderColor: 'var(--color-border)',
+                color: 'var(--color-text)',
+              }}
+            >
               <div className="flex items-center space-x-2">
                 <div className="flex space-x-1">
-                  <div className="w-2 h-2 rounded-full bg-amber-400 animate-bounce" />
-                  <div className="w-2 h-2 rounded-full bg-amber-400 animate-bounce [animation-delay:0.2s]" />
-                  <div className="w-2 h-2 rounded-full bg-amber-400 animate-bounce [animation-delay:0.4s]" />
+                  <div className="w-2 h-2 rounded-full bg-amber-500 animate-bounce" />
+                  <div className="w-2 h-2 rounded-full bg-amber-500 animate-bounce [animation-delay:0.2s]" />
+                  <div className="w-2 h-2 rounded-full bg-amber-500 animate-bounce [animation-delay:0.4s]" />
                 </div>
-                <span className="text-[11px] text-neutral-400">Gemini 3.6 Flash reflecting...</span>
+                <span className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>Gemini 3.6 Flash reflecting...</span>
               </div>
 
               {onStopGenerating && (
@@ -319,18 +369,25 @@ export const AICompanionChat: React.FC<AICompanionChatProps> = ({
       </div>
 
       {/* Input Area with Voice-to-Text Dictation */}
-      <form onSubmit={handleSubmit} className="p-3 bg-[#111111] border-t border-neutral-800 space-y-2">
+      <form
+        onSubmit={handleSubmit}
+        className="p-3 border-t space-y-2 transition-colors"
+        style={{
+          backgroundColor: 'var(--color-surface)',
+          borderColor: 'var(--color-border)',
+        }}
+      >
         {isListening && (
-          <div className="flex items-center justify-between px-3 py-1.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300 animate-pulse">
+          <div className="flex items-center justify-between px-3 py-1.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-xs text-rose-400 animate-pulse">
             <div className="flex items-center space-x-2">
               <span className="w-2 h-2 rounded-full bg-rose-400 animate-ping" />
               <span className="font-semibold">Listening... Speak now</span>
-              {interimText && <span className="text-neutral-400 italic font-normal">"{interimText}"</span>}
+              {interimText && <span className="italic font-normal opacity-80">"{interimText}"</span>}
             </div>
             <button
               type="button"
               onClick={toggleListening}
-              className="text-[11px] font-bold text-rose-400 hover:text-rose-200 underline cursor-pointer"
+              className="text-[11px] font-bold text-rose-500 hover:underline cursor-pointer"
             >
               Done Speaking
             </button>
@@ -349,7 +406,12 @@ export const AICompanionChat: React.FC<AICompanionChatProps> = ({
                 : 'Type or use Voice-to-Text to reflect (Shift+Enter for new line)...'
             }
             rows={2}
-            className="w-full resize-none bg-[#0d0d0d] border border-neutral-700/80 rounded-xl px-3.5 py-2.5 pr-20 text-xs sm:text-sm text-neutral-100 placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500/60"
+            className="w-full resize-none border rounded-xl px-3.5 py-2.5 pr-20 text-xs sm:text-sm placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500/60 transition-colors"
+            style={{
+              backgroundColor: 'var(--color-surface-elevated)',
+              borderColor: 'var(--color-border)',
+              color: 'var(--color-text)',
+            }}
           />
 
           <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center space-x-1">
@@ -358,11 +420,20 @@ export const AICompanionChat: React.FC<AICompanionChatProps> = ({
               id="btn-chat-mic"
               type="button"
               onClick={toggleListening}
-              className={`p-2 rounded-lg transition-all cursor-pointer ${
+              className={`p-2 rounded-lg transition-all cursor-pointer border ${
                 isListening
-                  ? 'bg-rose-500 text-white shadow-md animate-pulse'
-                  : 'bg-neutral-800 text-neutral-300 hover:text-amber-400 hover:bg-neutral-700'
+                  ? 'bg-rose-500 text-white shadow-md animate-pulse border-rose-600'
+                  : 'hover:opacity-80'
               }`}
+              style={
+                !isListening
+                  ? {
+                      backgroundColor: 'var(--color-surface)',
+                      borderColor: 'var(--color-border)',
+                      color: 'var(--color-text)',
+                    }
+                  : undefined
+              }
               title={isListening ? 'Stop Voice-to-Text' : 'Voice-to-Text (Speak instead of typing)'}
             >
               {isListening ? <MicOff className="w-4 h-4 text-white" /> : <Mic className="w-4 h-4" />}

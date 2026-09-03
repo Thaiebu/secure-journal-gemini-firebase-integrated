@@ -19,6 +19,7 @@ import { getAuthHeaders } from './services/authService';
 import { fetchCurrentUserRole } from './services/adminService';
 import { getFriendlyAuthErrorMessage } from './lib/utils';
 import { ShieldAlert, ArrowLeft } from 'lucide-react';
+import { ThemeProvider } from './context/ThemeContext';
 
 function createNewEntry(userId: string): JournalEntry {
   return {
@@ -391,8 +392,19 @@ export default function App() {
           'Your drive to continuously elevate your engineering skills is the foundation of great achievement.',
       };
 
+      // Generate and apply evocative reflection title when summary is generated
+      const generatedTitle =
+        (typeof data.title === 'string' && data.title.trim().replace(/^["']|["']$/g, '')) ||
+        (typeof raw.title === 'string' && raw.title.trim().replace(/^["']|["']$/g, '')) ||
+        (typeof data.suggestedTitle === 'string' && data.suggestedTitle.trim().replace(/^["']|["']$/g, '')) ||
+        (typeof raw.suggestedTitle === 'string' && raw.suggestedTitle.trim().replace(/^["']|["']$/g, '')) ||
+        (parsedInsight.keyThemes?.[0] ? `Reflections on ${parsedInsight.keyThemes[0]}` : null) ||
+        (parsedInsight.summary ? parsedInsight.summary.split('.')[0].replace(/^["']|["']$/g, '').slice(0, 45).trim() : null) ||
+        'Mindful Reflection';
+
       const updatedEntry: JournalEntry = {
         ...currentEntry,
+        title: generatedTitle,
         insights: parsedInsight,
         updatedAt: Date.now(),
       };
@@ -446,101 +458,119 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0A0A0A] text-neutral-100 flex flex-col font-sans">
-      <Navbar
-        user={user}
-        activeTab={activeTab}
-        onSelectTab={setActiveTab}
-        onSignOut={handleSignOut}
-        onOpenSecurityModal={() => setIsSecurityModalOpen(true)}
-        entriesCount={entries.length}
-        locationsCount={entries.filter((e) => !!e.location).length}
-      />
+    <ThemeProvider>
+      <div
+        className="min-h-screen flex flex-col font-sans transition-colors duration-200"
+        style={{
+          backgroundColor: 'var(--bg-main)',
+          color: 'var(--text-primary)',
+        }}
+      >
+        <Navbar
+          user={user}
+          activeTab={activeTab}
+          onSelectTab={setActiveTab}
+          onSignOut={handleSignOut}
+          onOpenSecurityModal={() => setIsSecurityModalOpen(true)}
+          entriesCount={entries.length}
+          locationsCount={entries.filter((e) => !!e.location).length}
+        />
 
-      <main className="flex-1">
-        {isAuthLoading ? (
-          <div className="min-h-[calc(100vh-4rem)] flex flex-col items-center justify-center space-y-4">
-            <div className="w-10 h-10 border-3 border-amber-500/30 border-t-amber-500 rounded-full animate-spin" />
-            <p className="text-sm font-medium text-neutral-400">Verifying secure Firebase credentials...</p>
-          </div>
-        ) : !user ? (
-          <AuthLanding
-            onGoogleSignIn={handleGoogleSignIn}
-            onVerifiedAccess={handleVerifiedAccess}
-            isLoading={isAuthLoading}
-            error={authError}
-            onClearError={() => setAuthError(null)}
-          />
-        ) : activeTab === 'editor' && currentEntry ? (
-          <JournalEditor
-            entry={currentEntry}
-            onChangeField={handleChangeField}
-            onSave={() => handleSaveEntry(currentEntry)}
-            onResetNew={handleResetNew}
-            saveStatus={saveStatus}
-            saveError={saveError}
-            onRetrySave={() => handleSaveEntry(currentEntry)}
-            onSendMessage={handleSendMessage}
-            onGenerateInsights={handleGenerateInsights}
-            onStopGeneratingChat={handleStopGeneratingChat}
-            onStopGeneratingInsights={handleStopGeneratingInsights}
-            isGeneratingInsights={isGeneratingInsights}
-            isGeneratingChat={isGeneratingChat}
-            reflectionMode={reflectionMode}
-            onSelectMode={setReflectionMode}
-          />
-        ) : activeTab === 'map' ? (
-          <JournalMapView
-            entries={entries}
-            onSelectEntry={handleSelectHistoryEntry}
-            onNewEntry={handleResetNew}
-          />
-        ) : activeTab === 'admin' ? (
-          user.admin ? (
-            <AdminDashboard currentUser={user} />
-          ) : (
-            <div className="max-w-3xl mx-auto px-4 py-16 text-center space-y-6">
-              <div className="w-16 h-16 mx-auto rounded-2xl bg-red-950/40 border border-red-500/30 text-red-400 flex items-center justify-center">
-                <ShieldAlert className="w-8 h-8" />
-              </div>
-              <div className="space-y-2">
-                <h2 className="text-xl font-bold text-white tracking-tight">
-                  Access Restricted: Administrator Privileges Required
-                </h2>
-                <p className="text-sm text-neutral-400 max-w-lg mx-auto leading-relaxed">
-                  The Admin Command Center is protected by strict Role-Based Access Control (RBAC). Your authenticated account ({user.email || user.uid}) lacks verified cryptographic administrator custom claims.
-                </p>
-              </div>
-              <div className="p-4 rounded-xl bg-[#141414] border border-neutral-800 text-left max-w-md mx-auto font-mono text-xs text-neutral-400 space-y-1.5">
-                <div className="text-amber-400 font-semibold">Security Enforcement Notice:</div>
-                <div>• Client-side flag injections or state mutations are strictly untrusted.</div>
-                <div>• Endpoints are cryptographically verified with Firebase Admin SDK.</div>
-                <div>• Status: <span className="text-red-400 font-bold">HTTP 403 Forbidden</span></div>
-              </div>
-              <button
-                onClick={() => setActiveTab('editor')}
-                className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-neutral-950 text-xs font-semibold transition cursor-pointer"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                <span>Return to Studio &amp; Reflection</span>
-              </button>
+        <main className="flex-1">
+          {isAuthLoading ? (
+            <div className="min-h-[calc(100vh-4rem)] flex flex-col items-center justify-center space-y-4">
+              <div className="w-10 h-10 border-3 border-amber-500/30 border-t-amber-500 rounded-full animate-spin" />
+              <p className="text-sm font-medium text-neutral-400">Verifying secure Firebase credentials...</p>
             </div>
-          )
-        ) : (
-          <JournalHistory
-            entries={entries}
-            onSelectEntry={handleSelectHistoryEntry}
-            onDeleteEntry={handleDeleteEntry}
-            onNewEntry={handleResetNew}
-          />
-        )}
-      </main>
+          ) : !user ? (
+            <AuthLanding
+              onGoogleSignIn={handleGoogleSignIn}
+              onVerifiedAccess={handleVerifiedAccess}
+              isLoading={isAuthLoading}
+              error={authError}
+              onClearError={() => setAuthError(null)}
+            />
+          ) : activeTab === 'editor' && currentEntry ? (
+            <JournalEditor
+              entry={currentEntry}
+              onChangeField={handleChangeField}
+              onSave={() => handleSaveEntry(currentEntry)}
+              onResetNew={handleResetNew}
+              saveStatus={saveStatus}
+              saveError={saveError}
+              onRetrySave={() => handleSaveEntry(currentEntry)}
+              onSendMessage={handleSendMessage}
+              onGenerateInsights={handleGenerateInsights}
+              onStopGeneratingChat={handleStopGeneratingChat}
+              onStopGeneratingInsights={handleStopGeneratingInsights}
+              isGeneratingInsights={isGeneratingInsights}
+              isGeneratingChat={isGeneratingChat}
+              reflectionMode={reflectionMode}
+              onSelectMode={setReflectionMode}
+            />
+          ) : activeTab === 'map' ? (
+            <JournalMapView
+              entries={entries}
+              onSelectEntry={handleSelectHistoryEntry}
+              onNewEntry={handleResetNew}
+            />
+          ) : activeTab === 'admin' ? (
+            user.admin ? (
+              <AdminDashboard currentUser={user} />
+            ) : (
+              <div className="max-w-3xl mx-auto px-4 py-16 text-center space-y-6">
+                <div className="w-16 h-16 mx-auto rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-600 dark:text-rose-400 flex items-center justify-center shadow-xs">
+                  <ShieldAlert className="w-8 h-8" />
+                </div>
+                <div className="space-y-2">
+                  <h2
+                    className="font-serif-display text-xl font-bold tracking-tight"
+                    style={{ color: 'var(--color-text)' }}
+                  >
+                    Access Restricted: Administrator Privileges Required
+                  </h2>
+                  <p className="text-sm max-w-lg mx-auto leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
+                    The Admin Command Center is protected by strict Role-Based Access Control (RBAC). Your authenticated account ({user.email || user.uid}) lacks verified cryptographic administrator custom claims.
+                  </p>
+                </div>
+                <div
+                  className="p-4 rounded-xl border text-left max-w-md mx-auto font-mono text-xs space-y-1.5 shadow-2xs"
+                  style={{
+                    backgroundColor: 'var(--color-surface)',
+                    borderColor: 'var(--color-border)',
+                    color: 'var(--color-text)',
+                  }}
+                >
+                  <div className="font-semibold" style={{ color: 'var(--color-accent-text)' }}>Security Enforcement Notice:</div>
+                  <div style={{ color: 'var(--color-text-muted)' }}>• Client-side flag injections or state mutations are strictly untrusted.</div>
+                  <div style={{ color: 'var(--color-text-muted)' }}>• Endpoints are cryptographically verified with Firebase Admin SDK.</div>
+                  <div style={{ color: 'var(--color-text-muted)' }}>• Status: <span className="text-rose-600 dark:text-rose-400 font-bold">HTTP 403 Forbidden</span></div>
+                </div>
+                <button
+                  onClick={() => setActiveTab('editor')}
+                  className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-neutral-950 text-xs font-semibold transition cursor-pointer shadow-xs active:scale-98"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>Return to Studio &amp; Reflection</span>
+                </button>
+              </div>
+            )
+          ) : (
+            <JournalHistory
+              entries={entries}
+              onSelectEntry={handleSelectHistoryEntry}
+              onDeleteEntry={handleDeleteEntry}
+              onNewEntry={handleResetNew}
+            />
+          )}
+        </main>
 
-      <SecurityModal
-        isOpen={isSecurityModalOpen}
-        onClose={() => setIsSecurityModalOpen(false)}
-        user={user}
-      />
-    </div>
+        <SecurityModal
+          isOpen={isSecurityModalOpen}
+          onClose={() => setIsSecurityModalOpen(false)}
+          user={user}
+        />
+      </div>
+    </ThemeProvider>
   );
 }

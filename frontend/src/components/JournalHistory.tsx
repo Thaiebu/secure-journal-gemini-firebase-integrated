@@ -84,13 +84,19 @@ export const JournalHistory: React.FC<JournalHistoryProps> = ({
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
       {/* Header & Controls */}
-      <div className="bg-[#141414] rounded-2xl border border-neutral-800/80 p-5 shadow-xs space-y-4">
+      <div
+        className="rounded-2xl border p-5 shadow-xs space-y-4 transition-colors"
+        style={{
+          backgroundColor: 'var(--color-surface)',
+          borderColor: 'var(--color-border)',
+        }}
+      >
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h2 className="font-serif-display text-2xl font-bold text-neutral-100">
+            <h2 className="font-serif-display text-2xl font-bold" style={{ color: 'var(--color-text)' }}>
               Journal History & Reflections
             </h2>
-            <p className="text-xs sm:text-sm text-neutral-400 mt-0.5">
+            <p className="text-xs sm:text-sm mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
               Securely persisted in your isolated Cloud Firestore collection ({entries.length} total {entries.length === 1 ? 'entry' : 'entries'})
             </p>
           </div>
@@ -106,17 +112,22 @@ export const JournalHistory: React.FC<JournalHistoryProps> = ({
         </div>
 
         {/* Search & Mood Filter */}
-        <div className="flex flex-col sm:flex-row gap-3 pt-2 border-t border-neutral-800">
+        <div className="flex flex-col sm:flex-row gap-3 pt-2 border-t" style={{ borderColor: 'var(--color-border)' }}>
           {/* Search bar */}
           <div className="relative flex-1">
-            <Search className="w-4 h-4 text-neutral-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--color-text-muted)' }} />
             <input
               id="history-search-input"
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search reflections, insights, tags, or feelings..."
-              className="w-full bg-[#0d0d0d] border border-neutral-800 rounded-xl pl-9 pr-4 py-2 text-xs sm:text-sm text-neutral-100 placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500/60"
+              className="w-full rounded-xl pl-9 pr-4 py-2 text-xs sm:text-sm border focus:outline-none focus:ring-2 focus:ring-amber-500/20 transition-colors"
+              style={{
+                backgroundColor: 'var(--color-surface)',
+                borderColor: 'var(--color-border)',
+                color: 'var(--color-text)',
+              }}
             />
           </div>
 
@@ -126,11 +137,12 @@ export const JournalHistory: React.FC<JournalHistoryProps> = ({
               <button
                 key={m}
                 onClick={() => setSelectedMood(m)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all cursor-pointer ${
-                  selectedMood === m
-                    ? 'bg-amber-500/20 text-amber-300 font-semibold border border-amber-500/40'
-                    : 'bg-neutral-800/80 text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200 border border-neutral-700/50'
-                }`}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all cursor-pointer border"
+                style={{
+                  backgroundColor: selectedMood === m ? 'var(--color-accent-subtle)' : 'var(--color-surface-elevated)',
+                  color: selectedMood === m ? 'var(--color-accent-text)' : 'var(--color-text-muted)',
+                  borderColor: selectedMood === m ? 'var(--color-accent)' : 'var(--color-border)',
+                }}
               >
                 {m}
               </button>
@@ -141,15 +153,27 @@ export const JournalHistory: React.FC<JournalHistoryProps> = ({
 
       {/* Grid of Entries */}
       {filteredEntries.length === 0 ? (
-        <div className="bg-[#141414] rounded-2xl border border-neutral-800 p-12 text-center space-y-4">
-          <div className="w-12 h-12 rounded-2xl bg-neutral-800 text-neutral-400 flex items-center justify-center mx-auto">
+        <div
+          className="rounded-2xl border p-12 text-center space-y-4"
+          style={{
+            backgroundColor: 'var(--color-surface)',
+            borderColor: 'var(--color-border)',
+          }}
+        >
+          <div
+            className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto"
+            style={{
+              backgroundColor: 'var(--color-surface-elevated)',
+              color: 'var(--color-text-muted)',
+            }}
+          >
             <BookOpen className="w-6 h-6" />
           </div>
           <div>
-            <h3 className="text-base font-bold text-neutral-100">
+            <h3 className="text-base font-bold" style={{ color: 'var(--color-text)' }}>
               {searchQuery || selectedMood !== 'All' ? 'No matching reflections found' : 'Your reflection history is empty'}
             </h3>
-            <p className="text-xs sm:text-sm text-neutral-400 mt-1 max-w-sm mx-auto">
+            <p className="text-xs sm:text-sm mt-1 max-w-sm mx-auto" style={{ color: 'var(--color-text-muted)' }}>
               {searchQuery || selectedMood !== 'All'
                 ? 'Try adjusting your search terms or mood filters.'
                 : 'Start your first journal entry and converse with the Gemini companion.'}
@@ -169,38 +193,61 @@ export const JournalHistory: React.FC<JournalHistoryProps> = ({
             <div
               key={entry.id}
               onClick={() => onSelectEntry(entry)}
-              className="group bg-[#141414] rounded-2xl border border-neutral-800/80 p-5 shadow-2xs hover:shadow-md hover:border-amber-500/40 transition-all cursor-pointer flex flex-col justify-between"
+              className="group rounded-2xl border p-5 shadow-2xs hover:shadow-md transition-all cursor-pointer flex flex-col justify-between"
+              style={{
+                backgroundColor: 'var(--color-surface)',
+                borderColor: 'var(--color-border)',
+              }}
             >
               <div className="space-y-3">
                 {/* Header: Date & Mood */}
-                <div className="flex items-center justify-between text-xs text-neutral-400">
+                <div className="flex items-center justify-between text-xs" style={{ color: 'var(--color-text-muted)' }}>
                   <span className="flex items-center space-x-1 font-medium">
-                    <Calendar className="w-3.5 h-3.5 text-neutral-500" />
+                    <Calendar className="w-3.5 h-3.5" style={{ color: 'var(--color-text-muted)' }} />
                     <span>{formatRelativeDate(entry.updatedAt || entry.createdAt)}</span>
                   </span>
-                  <span className="px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-300 border border-amber-500/30 text-[11px] font-semibold">
+                  <span
+                    className="px-2 py-0.5 rounded-md border text-[11px] font-semibold"
+                    style={{
+                      backgroundColor: 'var(--color-accent-subtle)',
+                      color: 'var(--color-accent-text)',
+                      borderColor: 'var(--color-border)',
+                    }}
+                  >
                     {entry.mood}
                   </span>
                 </div>
 
                 {/* Title */}
-                <h3 className="font-serif-display text-lg font-bold text-neutral-100 group-hover:text-amber-300 transition-colors line-clamp-1">
+                <h3
+                  className="font-serif-display text-lg font-bold transition-colors line-clamp-1 group-hover:underline"
+                  style={{ color: 'var(--color-text)' }}
+                >
                   {entry.title || 'Untitled Reflection'}
                 </h3>
 
                 {/* Content Excerpt */}
-                <p className="text-xs sm:text-sm text-neutral-400 line-clamp-3 leading-relaxed">
+                <p className="text-xs sm:text-sm line-clamp-3 leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
                   {entry.content || 'Empty entry...'}
                 </p>
 
                 {/* AI Summary Preview if present */}
                 {entry.insights?.summary && (
-                  <div className="p-2.5 rounded-xl bg-[#1c1a16] border border-amber-900/40 text-xs text-neutral-300">
-                    <div className="flex items-center space-x-1 text-[10px] font-bold text-amber-300 uppercase tracking-wider mb-1">
-                      <Sparkles className="w-3 h-3 text-amber-400" />
+                  <div
+                    className="p-2.5 rounded-xl border text-xs"
+                    style={{
+                      backgroundColor: 'var(--color-surface-elevated)',
+                      borderColor: 'var(--color-border)',
+                    }}
+                  >
+                    <div
+                      className="flex items-center space-x-1 text-[10px] font-bold uppercase tracking-wider mb-1"
+                      style={{ color: 'var(--color-accent-text)' }}
+                    >
+                      <Sparkles className="w-3 h-3" style={{ color: 'var(--color-accent)' }} />
                       <span>AI Key Insight</span>
                     </div>
-                    <p className="text-[11px] text-neutral-300 line-clamp-2 italic">
+                    <p className="text-[11px] line-clamp-2 italic" style={{ color: 'var(--color-text)' }}>
                       "{entry.insights.summary}"
                     </p>
                   </div>
@@ -208,8 +255,15 @@ export const JournalHistory: React.FC<JournalHistoryProps> = ({
 
                 {/* Location Badge if present */}
                 {entry.location && (
-                  <div className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[11px] font-medium">
-                    <MapPin className="w-3 h-3 text-amber-400 shrink-0" />
+                  <div
+                    className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md border text-[11px] font-medium"
+                    style={{
+                      backgroundColor: 'var(--color-accent-subtle)',
+                      borderColor: 'var(--color-border)',
+                      color: 'var(--color-accent-text)',
+                    }}
+                  >
+                    <MapPin className="w-3 h-3 shrink-0" style={{ color: 'var(--color-accent)' }} />
                     <span className="line-clamp-1">{entry.location.name}</span>
                   </div>
                 )}
@@ -220,7 +274,12 @@ export const JournalHistory: React.FC<JournalHistoryProps> = ({
                     {entry.tags.map((t) => (
                       <span
                         key={t}
-                        className="px-2 py-0.5 rounded-md bg-neutral-800 border border-neutral-700 text-neutral-300 text-[10px] font-medium"
+                        className="px-2 py-0.5 rounded-md border text-[10px] font-medium"
+                        style={{
+                          backgroundColor: 'var(--color-surface-elevated)',
+                          borderColor: 'var(--color-border)',
+                          color: 'var(--color-text)',
+                        }}
                       >
                         #{t}
                       </span>
@@ -230,12 +289,18 @@ export const JournalHistory: React.FC<JournalHistoryProps> = ({
               </div>
 
               {/* Bottom Meta & Actions */}
-              <div className="mt-4 pt-3 border-t border-neutral-800 flex items-center justify-between text-xs text-neutral-500">
+              <div
+                className="mt-4 pt-3 border-t flex items-center justify-between text-xs"
+                style={{
+                  borderColor: 'var(--color-border)',
+                  color: 'var(--color-text-muted)',
+                }}
+              >
                 <div className="flex items-center space-x-3">
                   <span>{calculateWordCount(entry.content)} words</span>
                   {entry.conversation && entry.conversation.length > 0 && (
-                    <span className="flex items-center space-x-1 text-neutral-400">
-                      <MessageSquare className="w-3.5 h-3.5 text-neutral-500" />
+                    <span className="flex items-center space-x-1">
+                      <MessageSquare className="w-3.5 h-3.5" style={{ color: 'var(--color-text-muted)' }} />
                       <span>{entry.conversation.length}</span>
                     </span>
                   )}
@@ -249,15 +314,16 @@ export const JournalHistory: React.FC<JournalHistoryProps> = ({
                       e.stopPropagation();
                       speak(entry.content, `history_${entry.id}`);
                     }}
-                    className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                      activeSpeakingId === `history_${entry.id}`
-                        ? 'text-amber-400 bg-amber-500/20'
-                        : 'text-neutral-500 hover:text-neutral-200 hover:bg-neutral-800'
-                    }`}
+                    className="p-1.5 rounded-lg transition-colors cursor-pointer border"
+                    style={{
+                      backgroundColor: activeSpeakingId === `history_${entry.id}` ? 'var(--color-accent-subtle)' : 'transparent',
+                      color: activeSpeakingId === `history_${entry.id}` ? 'var(--color-accent-text)' : 'var(--color-text-muted)',
+                      borderColor: activeSpeakingId === `history_${entry.id}` ? 'var(--color-accent)' : 'transparent',
+                    }}
                     title={activeSpeakingId === `history_${entry.id}` ? 'Stop audio' : 'Hear reflection aloud'}
                   >
                     {activeSpeakingId === `history_${entry.id}` ? (
-                      <VolumeX className="w-3.5 h-3.5 animate-pulse text-amber-400" />
+                      <VolumeX className="w-3.5 h-3.5 animate-pulse" style={{ color: 'var(--color-accent)' }} />
                     ) : (
                       <Volume2 className="w-3.5 h-3.5" />
                     )}
@@ -267,11 +333,12 @@ export const JournalHistory: React.FC<JournalHistoryProps> = ({
                   <button
                     type="button"
                     onClick={(e) => handleCopy(entry, e)}
-                    className="p-1.5 text-neutral-500 hover:text-neutral-200 hover:bg-neutral-800 rounded-lg transition-colors cursor-pointer"
+                    className="p-1.5 rounded-lg transition-colors cursor-pointer"
+                    style={{ color: 'var(--color-text-muted)' }}
                     title="Copy entry"
                   >
                     {copiedId === entry.id ? (
-                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      <Check className="w-3.5 h-3.5 text-emerald-500" />
                     ) : (
                       <Copy className="w-3.5 h-3.5" />
                     )}
@@ -282,7 +349,8 @@ export const JournalHistory: React.FC<JournalHistoryProps> = ({
                     type="button"
                     onClick={(e) => handleDelete(entry.id, e)}
                     disabled={deletingId === entry.id}
-                    className="p-1.5 text-neutral-500 hover:text-rose-400 hover:bg-rose-950/40 rounded-lg transition-colors cursor-pointer"
+                    className="p-1.5 hover:text-rose-500 rounded-lg transition-colors cursor-pointer"
+                    style={{ color: 'var(--color-text-muted)' }}
                     title="Delete reflection"
                   >
                     <Trash2 className="w-3.5 h-3.5" />

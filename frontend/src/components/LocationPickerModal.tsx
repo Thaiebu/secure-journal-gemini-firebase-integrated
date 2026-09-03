@@ -29,11 +29,16 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
   onSaveLocation,
 }) => {
   const envApiKey = (import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string) || '';
+  const envMapId = (import.meta.env.VITE_GOOGLE_MAPS_MAP_ID as string) || '';
   const [apiKey, setApiKey] = useState<string>(() => {
     return localStorage.getItem('mindreflect_maps_api_key') || envApiKey || '';
   });
+  const [mapId, setMapId] = useState<string>(() => {
+    return localStorage.getItem('mindreflect_maps_map_id') || envMapId || 'DEMO_MAP_ID';
+  });
   const [isEditingKey, setIsEditingKey] = useState<boolean>(false);
   const [keyInput, setKeyInput] = useState<string>('');
+  const [mapIdInput, setMapIdInput] = useState<string>('');
 
   const [locationName, setLocationName] = useState<string>('');
   const [address, setAddress] = useState<string>('');
@@ -107,11 +112,19 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
     );
   };
 
-  const handleSaveKey = () => {
-    const trimmed = keyInput.trim();
-    if (trimmed) {
-      localStorage.setItem('mindreflect_maps_api_key', trimmed);
-      setApiKey(trimmed);
+  const handleSaveSettings = () => {
+    const trimmedKey = keyInput.trim();
+    if (trimmedKey) {
+      localStorage.setItem('mindreflect_maps_api_key', trimmedKey);
+      setApiKey(trimmedKey);
+    }
+    const trimmedMapId = mapIdInput.trim();
+    if (trimmedMapId) {
+      localStorage.setItem('mindreflect_maps_map_id', trimmedMapId);
+      setMapId(trimmedMapId);
+    } else {
+      localStorage.removeItem('mindreflect_maps_map_id');
+      setMapId(envMapId || 'DEMO_MAP_ID');
     }
     setIsEditingKey(false);
   };
@@ -151,16 +164,29 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-neutral-950/80 backdrop-blur-xs">
-      <div className="bg-[#141414] rounded-2xl border border-neutral-800 shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+      <div
+        className="rounded-2xl border shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden"
+        style={{
+          backgroundColor: 'var(--color-surface)',
+          borderColor: 'var(--color-border)',
+        }}
+      >
         {/* Header */}
-        <div className="px-5 py-4 border-b border-neutral-800 flex items-center justify-between">
+        <div className="px-5 py-4 border-b flex items-center justify-between" style={{ borderColor: 'var(--color-border)' }}>
           <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+            <div
+              className="w-8 h-8 rounded-xl border flex items-center justify-center"
+              style={{
+                backgroundColor: 'var(--color-accent-subtle)',
+                borderColor: 'var(--color-border)',
+                color: 'var(--color-accent)',
+              }}
+            >
               <MapPin className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-neutral-100">Pin Location to Reflection</h3>
-              <p className="text-xs text-neutral-400">
+              <h3 className="text-base font-bold" style={{ color: 'var(--color-text)' }}>Pin Location to Reflection</h3>
+              <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
                 Anchor your insights to a physical place using Google Maps Platform
               </p>
             </div>
@@ -168,7 +194,8 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="text-neutral-400 hover:text-neutral-200 p-1.5 rounded-lg hover:bg-neutral-800 cursor-pointer"
+            className="p-1.5 rounded-lg cursor-pointer transition-colors"
+            style={{ color: 'var(--color-text-muted)' }}
           >
             <X className="w-4 h-4" />
           </button>
@@ -183,61 +210,109 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
                 type="button"
                 onClick={handleGetCurrentLocation}
                 disabled={isLocating}
-                className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
+                className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
+                style={{
+                  backgroundColor: 'var(--color-accent-subtle)',
+                  borderColor: 'var(--color-border)',
+                  color: 'var(--color-accent-text)',
+                }}
               >
                 <Navigation className={`w-3.5 h-3.5 ${isLocating ? 'animate-spin' : ''}`} />
                 <span>{isLocating ? 'Acquiring GPS...' : 'Use Current Location'}</span>
               </button>
 
-              <span className="text-xs text-neutral-500">or click anywhere on the map</span>
+              <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>or click anywhere on the map</span>
             </div>
 
             {/* API Key configuration toggle */}
             <button
               type="button"
-              onClick={() => setIsEditingKey(!isEditingKey)}
-              className="inline-flex items-center space-x-1 text-[11px] text-neutral-400 hover:text-neutral-200 cursor-pointer"
+              onClick={() => {
+                if (!isEditingKey) {
+                  setKeyInput(apiKey);
+                  setMapIdInput(mapId === 'DEMO_MAP_ID' ? '' : mapId);
+                }
+                setIsEditingKey(!isEditingKey);
+              }}
+              className="inline-flex items-center space-x-1 text-[11px] cursor-pointer"
+              style={{ color: 'var(--color-text-muted)' }}
             >
-              <Key className="w-3 h-3 text-amber-400" />
-              <span>{apiKey ? 'API Key Configured' : 'Configure Maps Key'}</span>
+              <Key className="w-3 h-3" style={{ color: 'var(--color-accent)' }} />
+              <span>{apiKey ? 'Maps Configured' : 'Configure Maps Key'}</span>
             </button>
           </div>
 
           {/* Key configuration panel */}
           {isEditingKey && (
-            <div className="p-3.5 rounded-xl bg-neutral-900 border border-neutral-800 space-y-2.5">
+            <div
+              className="p-3.5 rounded-xl border space-y-2.5"
+              style={{
+                backgroundColor: 'var(--color-surface-elevated)',
+                borderColor: 'var(--color-border)',
+              }}
+            >
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-neutral-200 flex items-center space-x-1">
-                  <Key className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Google Maps Platform API Key</span>
+                <span className="text-xs font-semibold flex items-center space-x-1" style={{ color: 'var(--color-text)' }}>
+                  <Key className="w-3.5 h-3.5" style={{ color: 'var(--color-accent)' }} />
+                  <span>Google Maps Platform Configuration</span>
                 </span>
                 <a
                   href="https://mapsplatform.google.com/maps-demo-key?utm_campaign=gmp_mcp_codeassist_v1_aistudio"
                   target="_blank"
                   rel="noreferrer"
-                  className="text-[11px] text-amber-400 hover:text-amber-300 flex items-center space-x-0.5"
+                  className="text-[11px] hover:underline flex items-center space-x-0.5"
+                  style={{ color: 'var(--color-accent-text)' }}
                 >
                   <span>Get Free Demo Key</span>
                   <ExternalLink className="w-3 h-3" />
                 </a>
               </div>
-              <p className="text-[11px] text-neutral-400">
-                You can provide a production restricted Google Maps API key or a zero-cost Maps Demo Key for prototyping.
+              <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
+                Set <code className="font-semibold" style={{ color: 'var(--color-accent-text)' }}>VITE_GOOGLE_MAPS_API_KEY</code> in your environment or paste your API key below. For prototyping, the zero-cost Maps Demo Key is supported.
               </p>
-              <div className="flex space-x-2">
-                <input
-                  type="password"
-                  value={keyInput}
-                  onChange={(e) => setKeyInput(e.target.value)}
-                  placeholder={apiKey ? '••••••••••••••••••••' : 'Enter Google Maps API key...'}
-                  className="flex-1 bg-[#0d0d0d] border border-neutral-700 rounded-lg px-3 py-1.5 text-xs text-neutral-100 placeholder:text-neutral-600 focus:outline-none focus:border-amber-500"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-medium mb-1" style={{ color: 'var(--color-text-muted)' }}>
+                    Google Maps API Key
+                  </label>
+                  <input
+                    type="password"
+                    value={keyInput}
+                    onChange={(e) => setKeyInput(e.target.value)}
+                    placeholder={apiKey ? '••••••••••••••••••••' : 'Enter Google Maps API key...'}
+                    className="w-full border rounded-lg px-3 py-1.5 text-xs focus:outline-none"
+                    style={{
+                      backgroundColor: 'var(--color-surface)',
+                      borderColor: 'var(--color-border)',
+                      color: 'var(--color-text)',
+                    }}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-medium mb-1" style={{ color: 'var(--color-text-muted)' }}>
+                    Map ID (Optional Cloud Vector Map ID)
+                  </label>
+                  <input
+                    type="text"
+                    value={mapIdInput}
+                    onChange={(e) => setMapIdInput(e.target.value)}
+                    placeholder="Optional, defaults to DEMO_MAP_ID"
+                    className="w-full border rounded-lg px-3 py-1.5 text-xs focus:outline-none"
+                    style={{
+                      backgroundColor: 'var(--color-surface)',
+                      borderColor: 'var(--color-border)',
+                      color: 'var(--color-text)',
+                    }}
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end pt-1">
                 <button
                   type="button"
-                  onClick={handleSaveKey}
-                  className="px-3 py-1.5 rounded-lg bg-amber-500 text-neutral-950 text-xs font-bold hover:bg-amber-400 cursor-pointer"
+                  onClick={handleSaveSettings}
+                  className="px-3 py-1.5 rounded-lg bg-amber-500 text-neutral-950 text-xs font-bold hover:bg-amber-400 cursor-pointer shadow-xs active:scale-98"
                 >
-                  Save Key
+                  Save Settings
                 </button>
               </div>
             </div>
@@ -253,12 +328,12 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
           {/* Interactive Google Map Container */}
           <div className="relative rounded-xl overflow-hidden border border-neutral-800 h-64 sm:h-72 w-full bg-neutral-900">
             {apiKey ? (
-              <APIProvider apiKey={apiKey}>
+              <APIProvider apiKey={apiKey} onError={(err) => console.warn('Google Maps APIProvider:', err)}>
                 <Map
                   defaultCenter={coordinates}
                   center={coordinates}
                   defaultZoom={hasMarker ? 13 : 4}
-                  mapId="DEMO_MAP_ID"
+                  mapId={mapId || 'DEMO_MAP_ID'}
                   onClick={handleMapClick}
                   gestureHandling="greedy"
                   className="w-full h-full"
@@ -302,11 +377,17 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
                     <MapPin className="w-6 h-6 text-amber-400 fill-amber-400/30" />
                   </div>
                 )}
-                <div className="max-w-xs space-y-1 z-0 bg-neutral-950/80 p-3 rounded-xl border border-neutral-800/80 backdrop-blur-xs">
-                  <p className="text-xs font-semibold text-neutral-200">
+                <div
+                  className="max-w-xs space-y-1 z-0 p-3 rounded-xl border backdrop-blur-xs"
+                  style={{
+                    backgroundColor: 'var(--color-surface)',
+                    borderColor: 'var(--color-border)',
+                  }}
+                >
+                  <p className="text-xs font-semibold" style={{ color: 'var(--color-text)' }}>
                     Interactive Location Canvas
                   </p>
-                  <p className="text-[11px] text-neutral-400">
+                  <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
                     Click anywhere to pin coordinates, or paste a Google Maps API Key to render live satellite & vector tiles.
                   </p>
                 </div>
@@ -316,7 +397,7 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
 
           {/* Quick Presets */}
           <div className="space-y-1.5">
-            <span className="text-[11px] font-semibold text-neutral-400">Quick Inspiration Places:</span>
+            <span className="text-[11px] font-semibold" style={{ color: 'var(--color-text-muted)' }}>Quick Inspiration Places:</span>
             <div className="flex flex-wrap gap-1.5">
               {presets.map((p) => (
                 <button
@@ -328,7 +409,12 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
                     setAddress(p.name);
                     setHasMarker(true);
                   }}
-                  className="px-2 py-1 rounded-lg bg-neutral-800/80 hover:bg-neutral-800 text-neutral-300 text-[11px] border border-neutral-700/60 transition-colors cursor-pointer"
+                  className="px-2 py-1 rounded-lg text-[11px] border transition-colors cursor-pointer"
+                  style={{
+                    backgroundColor: 'var(--color-surface-elevated)',
+                    borderColor: 'var(--color-border)',
+                    color: 'var(--color-text)',
+                  }}
                 >
                   {p.name}
                 </button>
@@ -337,22 +423,27 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
           </div>
 
           {/* Details Form */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-neutral-800">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t" style={{ borderColor: 'var(--color-border)' }}>
             <div>
-              <label className="block text-xs font-semibold text-neutral-300 mb-1">
-                Location Name <span className="text-amber-400">*</span>
+              <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--color-text)' }}>
+                Location Name <span style={{ color: 'var(--color-accent)' }}>*</span>
               </label>
               <input
                 type="text"
                 value={locationName}
                 onChange={(e) => setLocationName(e.target.value)}
                 placeholder="e.g., Home Office, Central Park, Tokyo Studio"
-                className="w-full bg-[#0d0d0d] border border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-100 placeholder:text-neutral-600 focus:outline-none focus:border-amber-500"
+                className="w-full border rounded-xl px-3 py-2 text-xs focus:outline-none"
+                style={{
+                  backgroundColor: 'var(--color-surface)',
+                  borderColor: 'var(--color-border)',
+                  color: 'var(--color-text)',
+                }}
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-neutral-300 mb-1">
+              <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--color-text)' }}>
                 Address / Descriptive Note
               </label>
               <input
@@ -360,28 +451,46 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
                 placeholder="e.g., Near the pond at dusk"
-                className="w-full bg-[#0d0d0d] border border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-100 placeholder:text-neutral-600 focus:outline-none focus:border-amber-500"
+                className="w-full border rounded-xl px-3 py-2 text-xs focus:outline-none"
+                style={{
+                  backgroundColor: 'var(--color-surface)',
+                  borderColor: 'var(--color-border)',
+                  color: 'var(--color-text)',
+                }}
               />
             </div>
           </div>
 
           {/* Coordinates readout */}
           {hasMarker && (
-            <div className="px-3 py-2 bg-neutral-900 rounded-xl border border-neutral-800/80 text-[11px] text-neutral-400 flex items-center justify-between">
-              <span>Latitude: <strong className="text-neutral-200">{coordinates.lat.toFixed(5)}</strong></span>
-              <span>Longitude: <strong className="text-neutral-200">{coordinates.lng.toFixed(5)}</strong></span>
+            <div
+              className="px-3 py-2 rounded-xl border text-[11px] flex items-center justify-between"
+              style={{
+                backgroundColor: 'var(--color-surface-elevated)',
+                borderColor: 'var(--color-border)',
+                color: 'var(--color-text-muted)',
+              }}
+            >
+              <span>Latitude: <strong style={{ color: 'var(--color-text)' }}>{coordinates.lat.toFixed(5)}</strong></span>
+              <span>Longitude: <strong style={{ color: 'var(--color-text)' }}>{coordinates.lng.toFixed(5)}</strong></span>
             </div>
           )}
         </div>
 
         {/* Footer actions */}
-        <div className="px-5 py-3.5 border-t border-neutral-800 flex items-center justify-between bg-neutral-900/50">
+        <div
+          className="px-5 py-3.5 border-t flex items-center justify-between"
+          style={{
+            backgroundColor: 'var(--color-surface-elevated)',
+            borderColor: 'var(--color-border)',
+          }}
+        >
           <div>
             {currentLocation && (
               <button
                 type="button"
                 onClick={handleRemoveLocation}
-                className="text-xs text-rose-400 hover:text-rose-300 font-semibold cursor-pointer"
+                className="text-xs text-rose-500 hover:text-rose-600 font-semibold cursor-pointer"
               >
                 Remove Pin
               </button>
@@ -392,7 +501,8 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-3 py-1.5 rounded-xl text-neutral-400 hover:text-neutral-200 text-xs font-medium cursor-pointer"
+              className="px-3 py-1.5 rounded-xl text-xs font-medium cursor-pointer"
+              style={{ color: 'var(--color-text-muted)' }}
             >
               Cancel
             </button>

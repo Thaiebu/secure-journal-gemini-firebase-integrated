@@ -1007,6 +1007,7 @@ app.post('/api/insights', getCurrentUser, async (req: Request, res: Response) =>
   const systemInstruction = `You are an expert psychological insight engine.
 Return ONLY valid JSON matching this exact structure:
 {
+  "title": "A concise, evocative title for this journal reflection (3-6 words, no quotation marks)",
   "summary": "2-3 sentence empathetic synthesis",
   "keyThemes": ["Theme 1", "Theme 2", "Theme 3", "Theme 4"],
   "emotionalTone": "Emotional descriptor",
@@ -1024,6 +1025,7 @@ Return ONLY valid JSON matching this exact structure:
     insights = JSON.parse(cleaned);
   } catch {
     insights = {
+      title: 'Mindful Horizon & Growth',
       summary: `You are exploring meaningful perspectives with a sincere drive to build clarity and progress.`,
       keyThemes: ['Self-Discovery', 'Progress', 'Focus', 'Resilience'],
       emotionalTone: mood,
@@ -1038,6 +1040,10 @@ Return ONLY valid JSON matching this exact structure:
       encouragement: 'Trust the process of daily reflection and deliberate action.',
     };
   }
+
+  const generatedTitle = (typeof insights.title === 'string' && insights.title.trim().replace(/^["']|["']$/g, '')) ||
+    (typeof insights.suggestedTitle === 'string' && insights.suggestedTitle.trim().replace(/^["']|["']$/g, '')) ||
+    (Array.isArray(insights.keyThemes) && insights.keyThemes[0] ? `Reflections on ${insights.keyThemes[0]}` : 'Mindful Reflection');
 
   const structuredInsight = {
     summary: insights.summary || `You are actively building awareness and cultivating actionable paths forward.`,
@@ -1056,6 +1062,8 @@ Return ONLY valid JSON matching this exact structure:
 
   res.json({
     status: 'success',
+    title: generatedTitle,
+    suggestedTitle: generatedTitle,
     insights: structuredInsight,
     ...structuredInsight,
     modelUsed: result.modelUsed,

@@ -27,13 +27,18 @@ export const JournalMapView: React.FC<JournalMapViewProps> = ({
   onNewEntry,
 }) => {
   const envApiKey = (import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string) || '';
+  const envMapId = (import.meta.env.VITE_GOOGLE_MAPS_MAP_ID as string) || '';
   const [apiKey, setApiKey] = useState<string>(() => {
     return localStorage.getItem('mindreflect_maps_api_key') || envApiKey || '';
+  });
+  const [mapId, setMapId] = useState<string>(() => {
+    return localStorage.getItem('mindreflect_maps_map_id') || envMapId || 'DEMO_MAP_ID';
   });
   const [selectedEntry, setSelectedEntry] = useState<JournalEntry | null>(null);
   const [activeMoodFilter, setActiveMoodFilter] = useState<string>('All');
   const [isEditingKey, setIsEditingKey] = useState<boolean>(false);
   const [keyInput, setKeyInput] = useState<string>('');
+  const [mapIdInput, setMapIdInput] = useState<string>('');
 
   const entriesWithLocation = useMemo(() => {
     return entries.filter((e) => e.location && typeof e.location.lat === 'number' && typeof e.location.lng === 'number');
@@ -53,11 +58,19 @@ export const JournalMapView: React.FC<JournalMapViewProps> = ({
     return DEFAULT_CENTER;
   }, [filteredEntries]);
 
-  const handleSaveKey = () => {
-    const trimmed = keyInput.trim();
-    if (trimmed) {
-      localStorage.setItem('mindreflect_maps_api_key', trimmed);
-      setApiKey(trimmed);
+  const handleSaveSettings = () => {
+    const trimmedKey = keyInput.trim();
+    if (trimmedKey) {
+      localStorage.setItem('mindreflect_maps_api_key', trimmedKey);
+      setApiKey(trimmedKey);
+    }
+    const trimmedMapId = mapIdInput.trim();
+    if (trimmedMapId) {
+      localStorage.setItem('mindreflect_maps_map_id', trimmedMapId);
+      setMapId(trimmedMapId);
+    } else {
+      localStorage.removeItem('mindreflect_maps_map_id');
+      setMapId(envMapId || 'DEMO_MAP_ID');
     }
     setIsEditingKey(false);
   };
@@ -65,16 +78,22 @@ export const JournalMapView: React.FC<JournalMapViewProps> = ({
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
       {/* Header & Controls */}
-      <div className="bg-[#141414] rounded-2xl border border-neutral-800/80 p-5 shadow-xs space-y-4">
+      <div
+        className="rounded-2xl border p-5 shadow-xs space-y-4"
+        style={{
+          backgroundColor: 'var(--color-surface)',
+          borderColor: 'var(--color-border)',
+        }}
+      >
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center space-x-2">
-              <Compass className="w-5 h-5 text-amber-400" />
-              <h2 className="font-serif-display text-2xl font-bold text-neutral-100">
+              <Compass className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
+              <h2 className="font-serif-display text-2xl font-bold" style={{ color: 'var(--color-text)' }}>
                 Geographic Reflection Map
               </h2>
             </div>
-            <p className="text-xs sm:text-sm text-neutral-400">
+            <p className="text-xs sm:text-sm" style={{ color: 'var(--color-text-muted)' }}>
               Visualizing {entriesWithLocation.length} location-aware reflections across the globe
             </p>
           </div>
@@ -82,11 +101,22 @@ export const JournalMapView: React.FC<JournalMapViewProps> = ({
           <div className="flex items-center space-x-3">
             <button
               type="button"
-              onClick={() => setIsEditingKey(!isEditingKey)}
-              className="inline-flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs font-semibold border border-neutral-700/60 transition-colors cursor-pointer"
+              onClick={() => {
+                if (!isEditingKey) {
+                  setKeyInput(apiKey);
+                  setMapIdInput(mapId === 'DEMO_MAP_ID' ? '' : mapId);
+                }
+                setIsEditingKey(!isEditingKey);
+              }}
+              className="inline-flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-colors cursor-pointer"
+              style={{
+                backgroundColor: 'var(--color-surface-elevated)',
+                borderColor: 'var(--color-border)',
+                color: 'var(--color-text)',
+              }}
             >
-              <Key className="w-3.5 h-3.5 text-amber-400" />
-              <span>{apiKey ? 'Maps Key Active' : 'Configure API Key'}</span>
+              <Key className="w-3.5 h-3.5" style={{ color: 'var(--color-accent)' }} />
+              <span>{apiKey ? 'Maps Configured' : 'Configure Maps Key'}</span>
             </button>
 
             <button
@@ -99,41 +129,77 @@ export const JournalMapView: React.FC<JournalMapViewProps> = ({
           </div>
         </div>
 
-        {/* API Key configuration prompt */}
+        {/* API Key & Map ID configuration prompt */}
         {isEditingKey && (
-          <div className="p-4 rounded-xl bg-neutral-900 border border-neutral-800 space-y-3">
+          <div
+            className="p-4 rounded-xl border space-y-3"
+            style={{
+              backgroundColor: 'var(--color-surface-elevated)',
+              borderColor: 'var(--color-border)',
+            }}
+          >
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-neutral-200 flex items-center space-x-1.5">
-                <Key className="w-4 h-4 text-amber-400" />
-                <span>Google Maps Platform Integration Key</span>
+              <span className="text-xs font-semibold flex items-center space-x-1.5" style={{ color: 'var(--color-text)' }}>
+                <Key className="w-4 h-4" style={{ color: 'var(--color-accent)' }} />
+                <span>Google Maps Platform Configuration</span>
               </span>
               <a
                 href="https://mapsplatform.google.com/maps-demo-key?utm_campaign=gmp_mcp_codeassist_v1_aistudio"
                 target="_blank"
                 rel="noreferrer"
-                className="text-xs text-amber-400 hover:text-amber-300 flex items-center space-x-1"
+                className="text-xs flex items-center space-x-1 font-medium hover:underline"
+                style={{ color: 'var(--color-accent-text)' }}
               >
                 <span>Obtain Free Demo Key</span>
                 <ExternalLink className="w-3.5 h-3.5" />
               </a>
             </div>
-            <p className="text-xs text-neutral-400">
-              Set <code className="text-amber-300">VITE_GOOGLE_MAPS_API_KEY</code> in your environment or paste your API key here. For development, you can use the zero-setup Google Maps Demo Key.
+            <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+              Set <code className="font-semibold" style={{ color: 'var(--color-accent-text)' }}>VITE_GOOGLE_MAPS_API_KEY</code> in your environment or paste your API key below. For prototyping, the zero-cost Maps Demo Key is supported.
             </p>
-            <div className="flex space-x-2">
-              <input
-                type="password"
-                value={keyInput}
-                onChange={(e) => setKeyInput(e.target.value)}
-                placeholder={apiKey ? '••••••••••••••••••••' : 'Enter Google Maps API key...'}
-                className="flex-1 bg-[#0d0d0d] border border-neutral-700 rounded-lg px-3 py-2 text-xs text-neutral-100 placeholder:text-neutral-600 focus:outline-none focus:border-amber-500"
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[11px] font-medium mb-1" style={{ color: 'var(--color-text-muted)' }}>
+                  Google Maps API Key
+                </label>
+                <input
+                  type="password"
+                  value={keyInput}
+                  onChange={(e) => setKeyInput(e.target.value)}
+                  placeholder={apiKey ? '••••••••••••••••••••' : 'Enter Google Maps API key...'}
+                  className="w-full border rounded-lg px-3 py-2 text-xs focus:outline-none"
+                  style={{
+                    backgroundColor: 'var(--color-surface)',
+                    borderColor: 'var(--color-border)',
+                    color: 'var(--color-text)',
+                  }}
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium mb-1" style={{ color: 'var(--color-text-muted)' }}>
+                  Map ID (Optional Cloud Vector Map ID)
+                </label>
+                <input
+                  type="text"
+                  value={mapIdInput}
+                  onChange={(e) => setMapIdInput(e.target.value)}
+                  placeholder="Optional, defaults to DEMO_MAP_ID"
+                  className="w-full border rounded-lg px-3 py-2 text-xs focus:outline-none"
+                  style={{
+                    backgroundColor: 'var(--color-surface)',
+                    borderColor: 'var(--color-border)',
+                    color: 'var(--color-text)',
+                  }}
+                />
+              </div>
+            </div>
+            <div className="flex justify-end pt-1">
               <button
                 type="button"
-                onClick={handleSaveKey}
-                className="px-4 py-2 rounded-lg bg-amber-500 text-neutral-950 text-xs font-bold hover:bg-amber-400 cursor-pointer"
+                onClick={handleSaveSettings}
+                className="px-4 py-2 rounded-lg bg-amber-500 text-neutral-950 text-xs font-bold hover:bg-amber-400 cursor-pointer shadow-xs active:scale-98"
               >
-                Save Key
+                Save Settings
               </button>
             </div>
           </div>
@@ -141,7 +207,7 @@ export const JournalMapView: React.FC<JournalMapViewProps> = ({
 
         {/* Filter Pills */}
         <div className="flex items-center gap-1.5 overflow-x-auto pt-2 border-t border-neutral-800">
-          <span className="text-xs font-semibold text-neutral-500 mr-2 flex items-center space-x-1">
+          <span className="text-xs font-semibold mr-2 flex items-center space-x-1" style={{ color: 'var(--color-text-muted)' }}>
             <Layers className="w-3.5 h-3.5" />
             <span>Mood:</span>
           </span>
@@ -149,11 +215,12 @@ export const JournalMapView: React.FC<JournalMapViewProps> = ({
             <button
               key={m}
               onClick={() => setActiveMoodFilter(m)}
-              className={`px-3 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-all cursor-pointer ${
-                activeMoodFilter === m
-                  ? 'bg-amber-500/20 text-amber-300 font-semibold border border-amber-500/40'
-                  : 'bg-neutral-800/80 text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200 border border-neutral-700/50'
-              }`}
+              className="px-3 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-all cursor-pointer border"
+              style={{
+                backgroundColor: activeMoodFilter === m ? 'var(--color-accent-subtle)' : 'var(--color-surface-elevated)',
+                color: activeMoodFilter === m ? 'var(--color-accent-text)' : 'var(--color-text-muted)',
+                borderColor: activeMoodFilter === m ? 'var(--color-accent)' : 'var(--color-border)',
+              }}
             >
               {m}
             </button>
@@ -164,11 +231,11 @@ export const JournalMapView: React.FC<JournalMapViewProps> = ({
       {/* Main Map Viewport */}
       <div className="relative rounded-2xl overflow-hidden border border-neutral-800 h-[520px] sm:h-[600px] w-full bg-[#0d0d0d] shadow-xl">
         {apiKey ? (
-          <APIProvider apiKey={apiKey}>
+          <APIProvider apiKey={apiKey} onError={(err) => console.warn('Google Maps APIProvider:', err)}>
             <Map
               defaultCenter={mapCenter}
               defaultZoom={filteredEntries.length > 0 ? 3 : 2}
-              mapId="DEMO_MAP_ID"
+              mapId={mapId || 'DEMO_MAP_ID'}
               gestureHandling="greedy"
               className="w-full h-full"
               internalUsageAttributionIds={['gmp_mcp_codeassist_v1_aistudio']}
@@ -267,15 +334,28 @@ export const JournalMapView: React.FC<JournalMapViewProps> = ({
             })}
 
             {/* Prompt overlay card */}
-            <div className="max-w-md space-y-3 z-10 bg-neutral-900/90 p-6 rounded-2xl border border-neutral-800 shadow-2xl backdrop-blur-md">
-              <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto text-amber-400">
+            <div
+              className="max-w-md space-y-3 z-10 p-6 rounded-2xl border shadow-2xl backdrop-blur-md"
+              style={{
+                backgroundColor: 'var(--color-surface)',
+                borderColor: 'var(--color-border)',
+              }}
+            >
+              <div
+                className="w-10 h-10 rounded-xl border flex items-center justify-center mx-auto"
+                style={{
+                  backgroundColor: 'var(--color-accent-subtle)',
+                  borderColor: 'var(--color-border)',
+                  color: 'var(--color-accent)',
+                }}
+              >
                 <Compass className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-neutral-100">
+                <h3 className="text-base font-bold" style={{ color: 'var(--color-text)' }}>
                   Google Maps Explorer Ready
                 </h3>
-                <p className="text-xs text-neutral-400 mt-1">
+                <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
                   {entriesWithLocation.length} reflection {entriesWithLocation.length === 1 ? 'spot is' : 'spots are'} pinned on your global canvas. Add a Google Maps API Key to render real-time vector and satellite tiles.
                 </p>
               </div>
@@ -292,7 +372,12 @@ export const JournalMapView: React.FC<JournalMapViewProps> = ({
                   href="https://mapsplatform.google.com/maps-demo-key?utm_campaign=gmp_mcp_codeassist_v1_aistudio"
                   target="_blank"
                   rel="noreferrer"
-                  className="w-full sm:w-auto px-4 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-semibold border border-neutral-700 flex items-center justify-center space-x-1 cursor-pointer"
+                  className="w-full sm:w-auto px-4 py-2 rounded-xl text-xs font-semibold border flex items-center justify-center space-x-1 cursor-pointer"
+                  style={{
+                    backgroundColor: 'var(--color-surface-elevated)',
+                    borderColor: 'var(--color-border)',
+                    color: 'var(--color-text)',
+                  }}
                 >
                   <span>Free Demo Key</span>
                   <ExternalLink className="w-3 h-3" />
@@ -304,36 +389,57 @@ export const JournalMapView: React.FC<JournalMapViewProps> = ({
 
         {/* Selected entry drawer on mobile/desktop */}
         {selectedEntry && (
-          <div className="absolute bottom-4 left-4 right-4 sm:right-auto sm:w-96 z-30 bg-[#141414]/95 border border-amber-500/40 rounded-2xl p-4 shadow-2xl backdrop-blur-md space-y-2.5">
+          <div
+            className="absolute bottom-4 left-4 right-4 sm:right-auto sm:w-96 z-30 border rounded-2xl p-4 shadow-2xl backdrop-blur-md space-y-2.5"
+            style={{
+              backgroundColor: 'var(--color-surface)',
+              borderColor: 'var(--color-accent)',
+            }}
+          >
             <div className="flex items-center justify-between">
-              <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/30 uppercase">
+              <span
+                className="px-2 py-0.5 rounded text-[10px] font-bold border uppercase"
+                style={{
+                  backgroundColor: 'var(--color-accent-subtle)',
+                  color: 'var(--color-accent-text)',
+                  borderColor: 'var(--color-border)',
+                }}
+              >
                 {selectedEntry.mood} &bull; {formatRelativeDate(selectedEntry.createdAt)}
               </span>
               <button
                 type="button"
                 onClick={() => setSelectedEntry(null)}
-                className="text-neutral-400 hover:text-neutral-200 text-xs cursor-pointer"
+                className="text-xs cursor-pointer p-1"
+                style={{ color: 'var(--color-text-muted)' }}
               >
                 ✕
               </button>
             </div>
 
             <div>
-              <h4 className="font-serif-display font-bold text-base text-neutral-100 line-clamp-1">
+              <h4 className="font-serif-display font-bold text-base line-clamp-1" style={{ color: 'var(--color-text)' }}>
                 {selectedEntry.title || 'Untitled Reflection'}
               </h4>
-              <p className="text-xs text-amber-300 flex items-center space-x-1 mt-0.5">
-                <MapPin className="w-3 h-3" />
+              <p className="text-xs flex items-center space-x-1 mt-0.5" style={{ color: 'var(--color-accent-text)' }}>
+                <MapPin className="w-3 h-3" style={{ color: 'var(--color-accent)' }} />
                 <span>{selectedEntry.location?.name}</span>
               </p>
             </div>
 
-            <p className="text-xs text-neutral-400 line-clamp-2 leading-relaxed">
+            <p className="text-xs line-clamp-2 leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
               {selectedEntry.content}
             </p>
 
             {selectedEntry.insights?.summary && (
-              <div className="p-2 rounded-lg bg-neutral-900 border border-neutral-800 text-[11px] text-neutral-300 italic">
+              <div
+                className="p-2 rounded-lg border text-[11px] italic"
+                style={{
+                  backgroundColor: 'var(--color-surface-elevated)',
+                  borderColor: 'var(--color-border)',
+                  color: 'var(--color-text)',
+                }}
+              >
                 "{selectedEntry.insights.summary}"
               </div>
             )}
@@ -351,13 +457,25 @@ export const JournalMapView: React.FC<JournalMapViewProps> = ({
 
       {/* Empty State Help */}
       {entriesWithLocation.length === 0 && (
-        <div className="bg-[#141414] rounded-2xl border border-neutral-800 p-8 text-center space-y-3">
-          <div className="w-10 h-10 rounded-xl bg-neutral-800 text-neutral-400 flex items-center justify-center mx-auto">
-            <MapPin className="w-5 h-5 text-amber-400" />
+        <div
+          className="rounded-2xl border p-8 text-center space-y-3"
+          style={{
+            backgroundColor: 'var(--color-surface)',
+            borderColor: 'var(--color-border)',
+          }}
+        >
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center mx-auto"
+            style={{
+              backgroundColor: 'var(--color-surface-elevated)',
+              color: 'var(--color-text-muted)',
+            }}
+          >
+            <MapPin className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-neutral-100">No Location Pins Yet</h3>
-            <p className="text-xs text-neutral-400 mt-1 max-w-sm mx-auto">
+            <h3 className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>No Location Pins Yet</h3>
+            <p className="text-xs mt-1 max-w-sm mx-auto" style={{ color: 'var(--color-text-muted)' }}>
               When writing or editing your reflections, click <strong>"Pin Location"</strong> to anchor your mindset to where you were.
             </p>
           </div>

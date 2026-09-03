@@ -25,7 +25,6 @@ import {
   MicOff,
   Copy,
   Check,
-  Dices,
   Edit3,
 } from 'lucide-react';
 import { useSpeech, useVoiceToText } from '../hooks/useSpeech';
@@ -141,114 +140,35 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
     setShowInspirations(false);
   };
 
-  const handleGenerateRandomTitle = () => {
-    const mood = entry.mood || 'Reflective';
-    const content = entry.content?.trim() || '';
-    const tags = entry.tags || [];
-
-    // Title pools themed by mood and prompt content
-    const moodTitles: Record<string, string[]> = {
-      Reflective: [
-        'Whispers of the Quiet Mind',
-        'Echoes of Today’s Horizon',
-        'Observations in Stillness',
-        'A Mindful Pause at Dusk',
-        'Navigating the Inner Tide',
-        'Subtle Shifts and Realizations',
-      ],
-      Grateful: [
-        'Sunlight on the Path: Small Mercies',
-        'Counting Quiet Blessings',
-        'The Warmth of Present Grace',
-        'An Ode to Everyday Wonders',
-        'Gratitude in Full Bloom',
-        'Held by Gentle Moments',
-      ],
-      Peaceful: [
-        'Sanctuary of the Calm Breath',
-        'Drifting Through Still Waters',
-        'Serenity in the Midst of Motion',
-        'A Soft Landing for the Spirit',
-        'The Poetry of Unhurried Time',
-        'Tranquility Reclaimed',
-      ],
-      Energized: [
-        'Igniting the Spark of Intention',
-        'Riding the Crest of Momentum',
-        'Unstoppable Clarity & Drive',
-        'Catalyst: Breaking Fresh Ground',
-        'Electric Horizons & Bold Steps',
-        'The Momentum of Purpose',
-      ],
-      Challenged: [
-        'Finding Anchor in the Storm',
-        'Lessons Forged in Resistance',
-        'Patience Through the Crossing',
-        'Reframing the Mountain Ahead',
-        'Resilience in the Making',
-        'Strength Beneath the Surface',
-      ],
-      Creative: [
-        'Uncharted Canvas of Thought',
-        'The Spark of New Invention',
-        'Weaving Ideas Into Form',
-        'Curiosity Without Boundaries',
-        'A Symphony of New Angles',
-        'Coloring Outside the Margins',
-      ],
-    };
-
-    // Extract potential keyword hints from content if available
-    let contextualPool = moodTitles[mood] || moodTitles.Reflective;
-
-    if (tags.length > 0) {
-      const primaryTag = tags[0];
-      contextualPool = [
-        ...contextualPool,
-        `Musings on ${primaryTag}`,
-        `A New Perspective on ${primaryTag}`,
-        `The Journey of ${primaryTag}`,
-      ];
-    }
-
-    if (content.length > 20) {
-      const firstWords = content
-        .split(/\s+/)
-        .slice(0, 5)
-        .join(' ')
-        .replace(/[^\w\s]/gi, '');
-      if (firstWords.length > 5) {
-        contextualPool = [
-          ...contextualPool,
-          `Reflections on "${firstWords}..."`,
-          `Notes on ${firstWords}`,
-        ];
-      }
-    }
-
-    const randomIndex = Math.floor(Math.random() * contextualPool.length);
-    const chosen = contextualPool[randomIndex];
-    onChangeField('title', chosen);
-  };
-
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
       {/* Top Controls Bar */}
-      <div className="bg-[#141414] rounded-2xl border border-neutral-800/80 p-4 shadow-xs flex flex-wrap items-center justify-between gap-4">
+      <div
+        className="rounded-2xl border p-4 shadow-xs flex flex-wrap items-center justify-between gap-4 transition-colors"
+        style={{
+          backgroundColor: 'var(--color-surface)',
+          borderColor: 'var(--color-border)',
+        }}
+      >
         <div className="flex items-center space-x-3">
           <button
             id="btn-new-entry"
             type="button"
             onClick={onResetNew}
-            className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-semibold transition-colors cursor-pointer border border-neutral-700/60"
+            className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer border hover:opacity-90"
+            style={{
+              backgroundColor: 'var(--color-surface-elevated)',
+              borderColor: 'var(--color-border)',
+              color: 'var(--color-text)',
+            }}
           >
-            <PlusCircle className="w-3.5 h-3.5 text-neutral-400" />
+            <PlusCircle className="w-3.5 h-3.5" style={{ color: 'var(--color-text-muted)' }} />
             <span>New Reflection</span>
           </button>
 
-          <span className="text-xs text-neutral-600">|</span>
+          <span className="text-xs" style={{ color: 'var(--color-border)' }}>|</span>
 
-          <span className="text-xs text-neutral-400 font-medium">
+          <span className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
             {calculateWordCount(entry.content)} words &bull; {calculateReadingTime(entry.content)}
           </span>
         </div>
@@ -256,29 +176,29 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
         {/* Save Status Indicator & Actions */}
         <div className="flex items-center space-x-3">
           {saveStatus === 'saving' && (
-            <span className="flex items-center space-x-1.5 text-xs text-amber-400 font-medium animate-pulse">
+            <span className="flex items-center space-x-1.5 text-xs text-amber-500 dark:text-amber-400 font-medium animate-pulse">
               <RefreshCw className="w-3.5 h-3.5 animate-spin" />
               <span>Saving to Firestore...</span>
             </span>
           )}
 
           {saveStatus === 'saved' && (
-            <span className="flex items-center space-x-1.5 text-xs text-emerald-400 font-medium">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="flex items-center space-x-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
               <span>Saved in Isolated Firestore</span>
             </span>
           )}
 
           {saveStatus === 'error' && (
             <div className="flex items-center space-x-2">
-              <span className="flex items-center space-x-1 text-xs text-rose-400 font-medium">
+              <span className="flex items-center space-x-1 text-xs text-rose-500 dark:text-rose-400 font-medium">
                 <AlertCircle className="w-3.5 h-3.5" />
                 <span>Save failed</span>
               </span>
               <button
                 type="button"
                 onClick={onRetrySave}
-                className="text-xs text-rose-400 underline font-semibold cursor-pointer"
+                className="text-xs text-rose-500 dark:text-rose-400 underline font-semibold cursor-pointer"
               >
                 Retry
               </button>
@@ -319,73 +239,86 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left Column: Journal Entry Workspace (7 cols on lg) */}
         <div className="lg:col-span-7 space-y-4">
-          <div className="bg-[#141414] rounded-2xl border border-neutral-800 shadow-xs p-5 sm:p-6 space-y-5">
+          <div
+            className="rounded-2xl border shadow-xs p-5 sm:p-6 space-y-5 transition-colors"
+            style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
+          >
             {/* Entry Title */}
             <div className="space-y-1.5">
-              <div className="flex items-center gap-2">
-                <div className="relative flex-1">
-                  <input
-                    id="entry-title-input"
-                    type="text"
-                    value={entry.title}
-                    onChange={(e) => onChangeField('title', e.target.value)}
-                    placeholder="Give this reflection a title..."
-                    className="w-full font-serif-display text-xl sm:text-2xl font-bold text-neutral-100 placeholder:text-neutral-600 border-none focus:outline-none focus:ring-0 px-0 bg-transparent pr-8"
-                  />
-                  <span className="absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-600 hover:text-neutral-400">
-                    <Edit3 className="w-4 h-4 opacity-40" />
-                  </span>
-                </div>
-
-                <button
-                  type="button"
-                  id="btn-random-title"
-                  onClick={handleGenerateRandomTitle}
-                  title="Generate a title based on your prompt, mood & content (Click to roll a new title, editable anytime)"
-                  className="inline-flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl bg-neutral-800/80 hover:bg-neutral-700 text-amber-300/90 hover:text-amber-300 text-xs font-semibold border border-neutral-700/60 hover:border-amber-500/40 transition-all cursor-pointer shrink-0 shadow-xs active:scale-95"
-                >
-                  <Dices className="w-3.5 h-3.5 text-amber-400" />
-                  <span className="hidden sm:inline">Inspire Title</span>
-                  <span className="sm:hidden">Roll</span>
-                </button>
+              <div className="relative w-full">
+                <input
+                  id="entry-title-input"
+                  type="text"
+                  value={entry.title}
+                  onChange={(e) => onChangeField('title', e.target.value)}
+                  placeholder="Give this reflection a title..."
+                  className="w-full font-['Verdana',sans-serif] text-xl sm:text-2xl font-bold border-none focus:outline-none focus:ring-0 px-0 bg-transparent pr-8"
+                  style={{
+                    fontFamily: 'Verdana, sans-serif',
+                    color: 'var(--color-text)',
+                  }}
+                />
+                <span className="absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none opacity-40" style={{ color: 'var(--color-text-muted)' }}>
+                  <Edit3 className="w-4 h-4" />
+                </span>
               </div>
 
-              <div className="flex items-center justify-between text-[11px] text-neutral-500">
+              <div className="flex items-center justify-between text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
                 <span>{entry.createdAt ? formatDate(entry.createdAt) : 'Today'}</span>
-                <span className="text-neutral-600 italic">Type to edit freely or click Inspire to randomize</span>
+                <span className="italic opacity-80">Title auto-generates with AI summary, or edit freely</span>
               </div>
             </div>
 
             {/* Mood & Tag Selectors */}
-            <div className="space-y-2.5 pt-2 border-t border-neutral-800">
+            <div className="space-y-2.5 pt-2 border-t" style={{ borderColor: 'var(--color-border)' }}>
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs font-semibold text-neutral-400 flex items-center space-x-1">
-                  <Smile className="w-3.5 h-3.5 text-neutral-500" />
+                <span
+                  className="text-xs font-semibold flex items-center space-x-1"
+                  style={{ color: 'var(--color-text-muted)' }}
+                >
+                  <Smile className="w-3.5 h-3.5 text-amber-500" />
                   <span>State:</span>
                 </span>
                 <div className="flex flex-wrap gap-1.5">
-                  {moodOptions.map((m) => (
-                    <button
-                      key={m.label}
-                      type="button"
-                      onClick={() => onChangeField('mood', m.label)}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
-                        entry.mood === m.label
-                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 font-semibold'
-                          : 'bg-neutral-800/80 text-neutral-400 border border-neutral-700/60 hover:bg-neutral-800 hover:text-neutral-200'
-                      }`}
-                    >
-                      <span className="mr-1">{m.emoji}</span>
-                      <span>{m.label}</span>
-                    </button>
-                  ))}
+                  {moodOptions.map((m) => {
+                    const isSelected = entry.mood === m.label;
+                    return (
+                      <button
+                        key={m.label}
+                        type="button"
+                        onClick={() => onChangeField('mood', m.label)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer border ${
+                          isSelected
+                            ? 'font-semibold shadow-xs'
+                            : 'hover:opacity-90'
+                        }`}
+                        style={{
+                          backgroundColor: isSelected
+                            ? 'var(--color-accent-subtle)'
+                            : 'var(--color-surface-elevated)',
+                          borderColor: isSelected
+                            ? 'var(--color-accent)'
+                            : 'var(--color-border)',
+                          color: isSelected
+                            ? 'var(--color-accent-text)'
+                            : 'var(--color-text)',
+                        }}
+                      >
+                        <span className="mr-1">{m.emoji}</span>
+                        <span>{m.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
               {/* Tags */}
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs font-semibold text-neutral-400 flex items-center space-x-1">
-                  <Tag className="w-3.5 h-3.5 text-neutral-500" />
+                <span
+                  className="text-xs font-semibold flex items-center space-x-1"
+                  style={{ color: 'var(--color-text-muted)' }}
+                >
+                  <Tag className="w-3.5 h-3.5 text-amber-500" />
                   <span>Tags:</span>
                 </span>
                 <div className="flex flex-wrap gap-1.5">
@@ -396,11 +329,20 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
                         key={tag}
                         type="button"
                         onClick={() => toggleTag(tag)}
-                        className={`px-2 py-0.5 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
+                        className={`px-2 py-0.5 rounded-md text-[11px] font-medium transition-colors cursor-pointer border ${
                           isSelected
-                            ? 'bg-amber-500 text-neutral-950 font-semibold'
-                            : 'bg-neutral-800 text-neutral-400 hover:bg-neutral-700 hover:text-neutral-200 border border-neutral-700/50'
+                            ? 'font-semibold'
+                            : 'hover:opacity-90'
                         }`}
+                        style={{
+                          backgroundColor: isSelected
+                            ? 'var(--color-accent)'
+                            : 'var(--color-surface-elevated)',
+                          color: isSelected ? '#FFFFFF' : 'var(--color-text)',
+                          borderColor: isSelected
+                            ? 'var(--color-accent)'
+                            : 'var(--color-border)',
+                        }}
                       >
                         #{tag}
                       </button>
@@ -411,7 +353,10 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
 
               {/* Location Pin Row */}
               <div className="flex flex-wrap items-center gap-2 pt-1">
-                <span className="text-xs font-semibold text-neutral-400 flex items-center space-x-1">
+                <span
+                  className="text-xs font-semibold flex items-center space-x-1"
+                  style={{ color: 'var(--color-text-muted)' }}
+                >
                   <MapPin className="w-3.5 h-3.5 text-amber-500" />
                   <span>Location:</span>
                 </span>
@@ -430,25 +375,33 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
                   <button
                     type="button"
                     onClick={() => setShowInspirations(!showInspirations)}
-                    className="inline-flex items-center space-x-1.5 text-xs font-medium text-amber-400 hover:text-amber-300 cursor-pointer"
+                    className="inline-flex items-center space-x-1.5 text-xs font-semibold transition-colors cursor-pointer hover:underline"
+                    style={{ color: 'var(--color-accent-text)' }}
                   >
-                    <Sparkles className="w-3.5 h-3.5" />
+                    <Sparkles className="w-3.5 h-3.5" style={{ color: 'var(--color-accent)' }} />
                     <span>{showInspirations ? 'Hide Ideas' : 'Need inspiration?'}</span>
                   </button>
                 </div>
 
                 {/* Audio & Voice Tools Toolbar */}
-                <div className="flex items-center space-x-1.5 bg-[#141414] border border-neutral-800 p-1 rounded-xl">
+                <div
+                  className="flex items-center space-x-1.5 border p-1 rounded-xl transition-colors"
+                  style={{
+                    backgroundColor: 'var(--color-surface-elevated)',
+                    borderColor: 'var(--color-border)',
+                  }}
+                >
                   {/* Voice-to-Text Dictation Button */}
                   <button
                     id="btn-voice-dictate-entry"
                     type="button"
                     onClick={toggleListening}
-                    className={`inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                      isListening
-                        ? 'bg-rose-500 text-white shadow-xs animate-pulse'
-                        : 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700 hover:text-amber-300'
-                    }`}
+                    className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer border"
+                    style={{
+                      backgroundColor: isListening ? '#ef4444' : 'var(--color-surface)',
+                      color: isListening ? '#ffffff' : 'var(--color-text)',
+                      borderColor: isListening ? '#dc2626' : 'var(--color-border)',
+                    }}
                     title={isListening ? 'Stop Voice-to-Text Dictation' : 'Voice-to-Text: Dictate reflection with your voice'}
                   >
                     {isListening ? (
@@ -458,7 +411,7 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
                       </>
                     ) : (
                       <>
-                        <Mic className="w-3.5 h-3.5 text-amber-400" />
+                        <Mic className="w-3.5 h-3.5" style={{ color: 'var(--color-accent)' }} />
                         <span>Voice to Text</span>
                       </>
                     )}
@@ -470,21 +423,22 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
                     type="button"
                     onClick={() => speak(entry.content || 'Your reflection is currently empty. Pour your thoughts or use voice to text.', 'journal_entry')}
                     disabled={!entry.content}
-                    className={`inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer disabled:opacity-40 ${
-                      activeSpeakingId === 'journal_entry'
-                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse'
-                        : 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700 hover:text-amber-300'
-                    }`}
+                    className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer disabled:opacity-40 border"
+                    style={{
+                      backgroundColor: activeSpeakingId === 'journal_entry' ? 'var(--color-accent-subtle)' : 'var(--color-surface)',
+                      color: activeSpeakingId === 'journal_entry' ? 'var(--color-accent-text)' : 'var(--color-text)',
+                      borderColor: activeSpeakingId === 'journal_entry' ? 'var(--color-accent)' : 'var(--color-border)',
+                    }}
                     title={activeSpeakingId === 'journal_entry' ? 'Stop audio' : 'Hear reflection read aloud'}
                   >
                     {activeSpeakingId === 'journal_entry' ? (
                       <>
-                        <VolumeX className="w-3.5 h-3.5 text-amber-400" />
+                        <VolumeX className="w-3.5 h-3.5" style={{ color: 'var(--color-accent)' }} />
                         <span>Stop Audio</span>
                       </>
                     ) : (
                       <>
-                        <Volume2 className="w-3.5 h-3.5 text-neutral-400" />
+                        <Volume2 className="w-3.5 h-3.5" style={{ color: 'var(--color-text-muted)' }} />
                         <span>Hear Entry</span>
                       </>
                     )}
@@ -496,17 +450,22 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
                     type="button"
                     onClick={handleCopy}
                     disabled={!entry.content}
-                    className="inline-flex items-center space-x-1 px-2 py-1 rounded-lg text-xs font-semibold bg-neutral-800 text-neutral-300 hover:bg-neutral-700 hover:text-neutral-100 transition-colors cursor-pointer disabled:opacity-40"
+                    className="inline-flex items-center space-x-1 px-2 py-1 rounded-lg text-xs font-semibold border transition-colors cursor-pointer disabled:opacity-40"
+                    style={{
+                      backgroundColor: 'var(--color-surface)',
+                      color: 'var(--color-text)',
+                      borderColor: 'var(--color-border)',
+                    }}
                     title="Copy reflection to clipboard"
                   >
                     {isCopied ? (
                       <>
-                        <Check className="w-3.5 h-3.5 text-emerald-400" />
-                        <span className="text-emerald-400">Copied</span>
+                        <Check className="w-3.5 h-3.5 text-emerald-500" />
+                        <span className="text-emerald-600 dark:text-emerald-400">Copied</span>
                       </>
                     ) : (
                       <>
-                        <Copy className="w-3.5 h-3.5 text-neutral-400" />
+                        <Copy className="w-3.5 h-3.5" style={{ color: 'var(--color-text-muted)' }} />
                         <span>Copy</span>
                       </>
                     )}
@@ -516,12 +475,12 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
 
               {/* Live Dictation Active Wave Banner */}
               {isListening && (
-                <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center justify-between animate-pulse">
+                <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-500 dark:text-rose-300 text-xs flex items-center justify-between animate-pulse">
                   <div className="flex items-center space-x-2">
                     <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping" />
                     <span className="font-semibold">Recording voice reflection... Speak freely into your microphone.</span>
                     {interimText && (
-                      <span className="text-neutral-300 italic font-normal">"{interimText}"</span>
+                      <span className="italic font-normal" style={{ color: 'var(--color-text-muted)' }}>"{interimText}"</span>
                     )}
                   </div>
                   <button
@@ -536,8 +495,14 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
 
               {/* Prompt Starters Accordion */}
               {showInspirations && (
-                <div className="mb-3 p-3.5 rounded-xl bg-[#1c1a16] border border-amber-900/60 space-y-2">
-                  <p className="text-xs font-semibold text-amber-300">
+                <div
+                  className="mb-3 p-3.5 rounded-xl border space-y-2 transition-colors"
+                  style={{
+                    backgroundColor: 'var(--color-surface-elevated)',
+                    borderColor: 'var(--color-border)',
+                  }}
+                >
+                  <p className="text-xs font-semibold" style={{ color: 'var(--color-accent-text)' }}>
                     Click a prompt to insert into your reflection:
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -546,10 +511,14 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
                         key={idx}
                         type="button"
                         onClick={() => handleApplyStarter(starter.text)}
-                        className="text-left p-2.5 rounded-lg bg-[#24221d] hover:bg-[#2e2a22] border border-amber-900/40 text-xs text-neutral-300 transition-all shadow-2xs cursor-pointer"
+                        className="text-left p-2.5 rounded-lg border text-xs transition-all shadow-2xs cursor-pointer hover:opacity-90"
+                        style={{
+                          backgroundColor: 'var(--color-surface)',
+                          borderColor: 'var(--color-border)',
+                        }}
                       >
-                        <p className="font-semibold text-neutral-100 mb-0.5">{starter.title}</p>
-                        <p className="text-[11px] text-neutral-400 line-clamp-2">{starter.text}</p>
+                        <p className="font-semibold mb-0.5" style={{ color: 'var(--color-text)' }}>{starter.title}</p>
+                        <p className="text-[11px] line-clamp-2" style={{ color: 'var(--color-text-muted)' }}>{starter.text}</p>
                       </button>
                     ))}
                   </div>
@@ -562,12 +531,17 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
                 onChange={(e) => onChangeField('content', e.target.value)}
                 placeholder="Pour your thoughts freely here... What happened today? What feelings arose? What did you discover?"
                 rows={14}
-                className="w-full bg-[#0d0d0d] rounded-xl p-4 text-neutral-100 placeholder:text-neutral-600 border border-neutral-800 focus:border-amber-500/60 focus:bg-[#111111] focus:outline-none focus:ring-2 focus:ring-amber-500/20 text-sm sm:text-base leading-relaxed resize-y font-normal"
+                className="w-full rounded-xl p-4 border focus:border-amber-500/60 focus:outline-none focus:ring-2 focus:ring-amber-500/20 text-sm sm:text-base leading-relaxed resize-y font-normal transition-colors"
+                style={{
+                  backgroundColor: 'var(--color-surface-elevated)',
+                  borderColor: 'var(--color-border)',
+                  color: 'var(--color-text)',
+                }}
               />
             </div>
 
             {/* Bottom Actions */}
-            <div className="pt-3 border-t border-neutral-800 flex flex-wrap items-center justify-between gap-3">
+            <div className="pt-3 border-t flex flex-wrap items-center justify-between gap-3" style={{ borderColor: 'var(--color-border)' }}>
               <div className="flex items-center space-x-2">
                 <button
                   id="btn-quick-insights"
@@ -577,14 +551,19 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
                     onGenerateInsights();
                   }}
                   disabled={!entry.content.trim() || isGeneratingInsights}
-                  className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 text-amber-300 border border-amber-500/30 hover:bg-amber-500/20 text-xs font-semibold disabled:opacity-40 transition-colors cursor-pointer"
+                  className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold disabled:opacity-40 transition-colors cursor-pointer"
+                  style={{
+                    backgroundColor: 'var(--color-accent-subtle)',
+                    borderColor: 'var(--color-border)',
+                    color: 'var(--color-accent-text)',
+                  }}
                 >
-                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                  <Sparkles className="w-3.5 h-3.5" style={{ color: 'var(--color-accent)' }} />
                   <span>Synthesize with AI</span>
                 </button>
               </div>
 
-              <span className="text-[11px] text-neutral-500 italic">
+              <span className="text-[11px] italic" style={{ color: 'var(--color-text-muted)' }}>
                 Isolated to Firestore document: /users/{entry.userId || 'current'}/journals
               </span>
             </div>
@@ -594,20 +573,29 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
         {/* Right Column: AI Companion & Synthesis Studio (5 cols on lg) */}
         <div className="lg:col-span-5 space-y-4">
           {/* Side Tabs: Chat vs Synthesis */}
-          <div className="flex items-center bg-neutral-900 border border-neutral-800/80 p-1 rounded-xl">
+          <div
+            className="flex items-center border p-1 rounded-xl transition-colors"
+            style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
+          >
             <button
               type="button"
               onClick={() => setActiveSideTab('chat')}
-              className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${
-                activeSideTab === 'chat'
-                  ? 'bg-neutral-800 text-neutral-100 shadow-xs'
-                  : 'text-neutral-400 hover:text-neutral-200'
-              }`}
+              className="flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center justify-center space-x-1.5 cursor-pointer"
+              style={{
+                backgroundColor: activeSideTab === 'chat' ? 'var(--color-accent-subtle)' : 'transparent',
+                color: activeSideTab === 'chat' ? 'var(--color-accent-text)' : 'var(--color-text-muted)',
+              }}
             >
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <Sparkles className="w-3.5 h-3.5" style={{ color: 'var(--color-accent)' }} />
               <span>Multi-Turn Dialogue</span>
               {entry.conversation?.length > 0 && (
-                <span className="ml-1 px-1.5 py-0.2 text-[10px] rounded-full bg-neutral-700 text-neutral-200">
+                <span
+                  className="ml-1 px-1.5 py-0.2 text-[10px] rounded-full"
+                  style={{
+                    backgroundColor: 'var(--color-surface-elevated)',
+                    color: 'var(--color-text-muted)',
+                  }}
+                >
                   {entry.conversation.length}
                 </span>
               )}
@@ -616,13 +604,13 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
             <button
               type="button"
               onClick={() => setActiveSideTab('insights')}
-              className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${
-                activeSideTab === 'insights'
-                  ? 'bg-neutral-800 text-neutral-100 shadow-xs'
-                  : 'text-neutral-400 hover:text-neutral-200'
-              }`}
+              className="flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center justify-center space-x-1.5 cursor-pointer"
+              style={{
+                backgroundColor: activeSideTab === 'insights' ? 'var(--color-accent-subtle)' : 'transparent',
+                color: activeSideTab === 'insights' ? 'var(--color-accent-text)' : 'var(--color-text-muted)',
+              }}
             >
-              <BookOpen className="w-3.5 h-3.5 text-purple-400" />
+              <BookOpen className="w-3.5 h-3.5 text-purple-500 dark:text-purple-400" />
               <span>AI Insights & Summary</span>
             </button>
           </div>

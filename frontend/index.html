@@ -11,9 +11,49 @@
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Playfair+Display:ital,wght@0,600;0,700;1,400&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+    <!-- Immediate theme initializer to eliminate flash on startup -->
+    <script>
+      (function() {
+        try {
+          var saved = localStorage.getItem('theme') || localStorage.getItem('mindreflect_theme_preset');
+          var isDark = true;
+          var theme = 'obsidian';
+          if (saved === 'system') {
+            isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+            theme = isDark ? 'obsidian' : 'pristine';
+          } else if (saved === 'pristine' || saved === 'light') {
+            theme = 'pristine';
+            isDark = false;
+          } else if (saved === 'parchment' || saved === 'sepia') {
+            theme = 'parchment';
+            isDark = false;
+          } else if (saved === 'twilight' || saved === 'nord') {
+            theme = 'twilight';
+            isDark = true;
+          } else if (saved === 'obsidian' || saved === 'dark') {
+            theme = 'obsidian';
+            isDark = true;
+          } else {
+            // Default check system preference
+            if (window.matchMedia && !window.matchMedia('(prefers-color-scheme: dark)').matches) {
+              theme = 'pristine';
+              isDark = false;
+            }
+          }
+          var root = document.documentElement;
+          root.setAttribute('data-theme', theme);
+          root.setAttribute('data-mode', isDark ? 'dark' : 'light');
+          root.classList.add(isDark ? 'dark' : 'light');
+          root.classList.add('theme-' + theme);
+          if (saved) {
+            root.setAttribute('data-user-theme', saved);
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
-  <body class="bg-[#0A0A0A] text-neutral-100 antialiased selection:bg-amber-950 selection:text-amber-200">
+  <body class="antialiased selection:bg-amber-950 selection:text-amber-200">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
