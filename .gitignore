@@ -1,0 +1,31 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+
+# Environment and secrets (Never commit secrets to git)
+.env*
+!.env.example
+*.env
+*.secret
+
+# Firebase & Cloud Credentials (Strict Zero-Leak Protection)
+firebase-applet-config.json
+**/firebase-applet-config.json
+firebase_applet_config.xml
+**/firebase_applet_config.xml
+serviceAccountKey*.json
+service-account*.json
+credentials.json
+client_secret*.json
+*.pem
+*.key
+*.p12
+*.crt
+
+# Editor and system artifacts
+.vscode/
+.idea/
+*.swp

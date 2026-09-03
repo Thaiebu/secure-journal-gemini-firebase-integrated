@@ -1,0 +1,50 @@
+{
+  "entities": {
+    "JournalEntry": {
+      "title": "JournalEntry",
+      "description": "User reflective journal entries, including conversation logs, structured AI synthesis, and pinned location metadata.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier of the journal entry" },
+        "userId": { "type": "string", "description": "UID of the authenticated owner" },
+        "title": { "type": "string", "maxLength": 300, "description": "Journal title" },
+        "content": { "type": "string", "maxLength": 50000, "description": "Reflection text" },
+        "mood": { "type": "string", "maxLength": 50, "description": "Associated mood or emotional state" },
+        "tags": { "type": "array", "description": "Categorical tags" },
+        "createdAt": { "type": "number", "description": "Creation timestamp in milliseconds" },
+        "updatedAt": { "type": "number", "description": "Last updated timestamp in milliseconds" },
+        "conversation": { "type": "array", "description": "Multi-turn dialogue messages" },
+        "insights": { "type": "object", "description": "AI psychological and cognitive synthesis" },
+        "location": { "type": "object", "description": "Pinned Google Maps geographic location data (name, lat, lng, address)" },
+        "pinned": { "type": "boolean", "description": "Whether the entry is pinned to favorites" }
+      },
+      "required": ["id", "userId", "content", "createdAt", "updatedAt"]
+    },
+    "InteractionLog": {
+      "title": "InteractionLog",
+      "description": "Log of individual AI conversation prompts and generated responses.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique interaction identifier" },
+        "userId": { "type": "string", "description": "UID of the authenticated owner" },
+        "journalId": { "type": "string", "description": "Reference journal ID" },
+        "prompt": { "type": "string", "description": "User prompt" },
+        "response": { "type": "string", "description": "AI response" },
+        "mode": { "type": "string", "description": "Companion mode" },
+        "modelUsed": { "type": "string", "description": "Gemini model version" },
+        "timestamp": { "type": "number", "description": "Execution timestamp" }
+      },
+      "required": ["id", "userId", "journalId", "prompt", "response", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/journals/{journalId}": {
+      "schema": "JournalEntry",
+      "description": "User-isolated journal entries"
+    },
+    "/users/{userId}/interactions/{interactionId}": {
+      "schema": "InteractionLog",
+      "description": "User-isolated AI companion interaction logs"
+    }
+  }
+}
