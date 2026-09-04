@@ -35,6 +35,28 @@ export async function fetchAdminMetrics(): Promise<AdminMetrics> {
 }
 
 /**
+ * Fetches security audit logs (Protected by require_admin).
+ */
+export async function fetchAdminAuditLogs(): Promise<Array<{
+  id: string;
+  timestamp: number;
+  action: string;
+  actorUid: string;
+  actorEmail: string;
+  targetUid?: string;
+  details?: string;
+}>> {
+  const headers = await getAuthHeaders();
+  const res = await fetch('/api/admin/audit-log', { headers });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.detail || `Access forbidden: HTTP ${res.status}`);
+  }
+  const data = await res.json();
+  return (data.auditLogs || data.logs || []) as any[];
+}
+
+/**
  * Fetches user registry for admin inspection (Protected by require_admin).
  */
 export async function fetchAdminUsers(): Promise<AdminUserItem[]> {

@@ -3,6 +3,7 @@ import { UserProfile, AdminMetrics, AdminUserItem } from '../types';
 import {
   fetchAdminMetrics,
   fetchAdminUsers,
+  fetchAdminAuditLogs,
   promoteUserToAdmin,
   demoteUserRole,
 } from '../services/adminService';
@@ -22,6 +23,8 @@ import {
   Terminal,
   CheckCircle2,
   AlertTriangle,
+  FileText,
+  Filter,
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -31,28 +34,49 @@ interface AdminDashboardProps {
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) => {
   const [metrics, setMetrics] = useState<AdminMetrics | null>(null);
   const [users, setUsers] = useState<AdminUserItem[]>([]);
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isRefreshingLogs, setIsRefreshingLogs] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const [promoteInputUid, setPromoteInputUid] = useState<string>('');
   const [isPromoting, setIsPromoting] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [auditSearchQuery, setAuditSearchQuery] = useState<string>('');
+  const [auditFilterAction, setAuditFilterAction] = useState<string>('ALL');
 
   const loadDashboardData = async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const [metricsData, usersData] = await Promise.all([
+      const [metricsData, usersData, auditLogsData] = await Promise.all([
         fetchAdminMetrics(),
         fetchAdminUsers(),
+        fetchAdminAuditLogs().catch((err) => {
+          console.warn('[Admin] Audit log fetch notice:', err);
+          return [];
+        }),
       ]);
       setMetrics(metricsData);
       setUsers(usersData);
+      setAuditLogs(Array.isArray(auditLogsData) && auditLogsData.length > 0 ? auditLogsData : (metricsData?.auditLogPreview || []));
     } catch (err: any) {
       setError(err.message || 'Failed to load administrator metrics. Elevated permissions required.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleRefreshAuditLogs = async () => {
+    setIsRefreshingLogs(true);
+    try {
+      const logs = await fetchAdminAuditLogs();
+      setAuditLogs(logs);
+    } catch (err: any) {
+      console.warn('Failed to refresh audit logs:', err);
+    } finally {
+      setIsRefreshingLogs(false);
     }
   };
 
@@ -94,6 +118,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
       u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
       u.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const displayedLogs = auditLogs.filter((log) => {
+    const query = auditSearchQuery.toLowerCase().trim();
+    const matchesSearch =
+      !query ||
+      log.action?.toLowerCase().includes(query) ||
+      log.actorEmail?.toLowerCase().includes(query) ||
+      log.actorUid?.toLowerCase().includes(query) ||
+      log.targetUid?.toLowerCase().includes(query) ||
+      log.details?.toLowerCase().includes(query);
+
+    if (!matchesSearch) return false;
+
+    if (auditFilterAction === 'ALL') return true;
+    if (auditFilterAction === 'ADMIN') {
+      return log.action?.includes('ADMIN') || log.action?.includes('PROMOT') || log.action?.includes('DEMOT');
+    }
+    if (auditFilterAction === 'SECURITY') {
+      return log.action?.includes('LIMIT') || log.action?.includes('INJECTION') || log.action?.includes('BLOCKED');
+    }
+    if (auditFilterAction === 'JOURNAL') {
+      return log.action?.includes('JOURNAL');
+    }
+    return true;
+  });
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
@@ -524,53 +573,177 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
         </div>
       </div>
 
-      {/* Security Audit Log Preview */}
-      {metrics && metrics.auditLogPreview && (
+      {/* Security Audit Log & Real-Time Trail */}
+      <div
+        className="p-6 rounded-2xl border space-y-5 shadow-2xs"
+        style={{
+          backgroundColor: 'var(--color-surface)',
+          borderColor: 'var(--color-border)',
+        }}
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center space-x-2.5">
+            <Terminal className="w-5 h-5 text-emerald-500" />
+            <div>
+              <div className="flex items-center space-x-2">
+                <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
+                  Security &amp; RBAC Audit Trail
+                </h2>
+                <span
+                  className="px-2 py-0.5 rounded-full text-[10px] font-semibold border font-mono"
+                  style={{
+                    backgroundColor: 'var(--color-surface-elevated)',
+                    borderColor: 'var(--color-border)',
+                    color: 'var(--color-text-muted)',
+                  }}
+                >
+                  {auditLogs.length} events logged
+                </span>
+              </div>
+              <p className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
+                Immutable event stream tracking authentication, privilege escalations, rate limits, and threat mitigations.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <button
+              id="admin-btn-refresh-audit"
+              onClick={handleRefreshAuditLogs}
+              disabled={isRefreshingLogs}
+              className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors cursor-pointer disabled:opacity-50"
+              style={{
+                backgroundColor: 'var(--color-surface-elevated)',
+                borderColor: 'var(--color-border)',
+                color: 'var(--color-text)',
+              }}
+              title="Refresh Audit Logs"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${isRefreshingLogs ? 'animate-spin' : ''}`} />
+              {isRefreshingLogs ? 'Syncing...' : 'Refresh Logs'}
+            </button>
+          </div>
+        </div>
+
+        {/* Filter Controls & Search */}
+        <div className="flex flex-col sm:flex-row gap-3 pt-1">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-2.5 w-3.5 h-3.5" style={{ color: 'var(--color-text-muted)' }} />
+            <input
+              id="admin-input-audit-search"
+              type="text"
+              value={auditSearchQuery}
+              onChange={(e) => setAuditSearchQuery(e.target.value)}
+              placeholder="Search audit trail by actor, UID, action, or details..."
+              className="w-full pl-9 pr-3 py-1.5 rounded-lg text-xs border outline-none transition-colors"
+              style={{
+                backgroundColor: 'var(--color-surface-elevated)',
+                borderColor: 'var(--color-border)',
+                color: 'var(--color-text)',
+              }}
+            />
+          </div>
+
+          <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 sm:pb-0">
+            {(['ALL', 'ADMIN', 'SECURITY', 'JOURNAL'] as const).map((filterType) => (
+              <button
+                key={filterType}
+                id={`admin-filter-audit-${filterType.toLowerCase()}`}
+                onClick={() => setAuditFilterAction(filterType)}
+                className="px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors cursor-pointer border"
+                style={{
+                  backgroundColor:
+                    auditFilterAction === filterType
+                      ? 'var(--color-accent)'
+                      : 'var(--color-surface-elevated)',
+                  borderColor:
+                    auditFilterAction === filterType
+                      ? 'var(--color-accent)'
+                      : 'var(--color-border)',
+                  color:
+                    auditFilterAction === filterType
+                      ? 'var(--color-accent-contrast)'
+                      : 'var(--color-text-muted)',
+                }}
+              >
+                {filterType === 'ALL'
+                  ? 'All Logs'
+                  : filterType === 'ADMIN'
+                  ? 'Admin & RBAC'
+                  : filterType === 'SECURITY'
+                  ? 'Threat & Rate Limits'
+                  : 'Journals'}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Audit Log Table / Stream */}
         <div
-          className="p-6 rounded-2xl border space-y-4 shadow-2xs"
+          className="border rounded-xl font-mono text-[11px] max-h-80 overflow-y-auto divide-y"
           style={{
-            backgroundColor: 'var(--color-surface)',
+            backgroundColor: 'var(--color-surface-elevated)',
             borderColor: 'var(--color-border)',
           }}
         >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2.5">
-              <Terminal className="w-4 h-4 text-emerald-500" />
-              <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>Security &amp; RBAC Audit Trail</h2>
+          {displayedLogs.length === 0 ? (
+            <div className="py-8 text-center" style={{ color: 'var(--color-text-muted)' }}>
+              No audit records match the selected filter.
             </div>
-            <span className="text-[11px] font-mono" style={{ color: 'var(--color-text-muted)' }}>Live Log</span>
-          </div>
+          ) : (
+            displayedLogs.map((log) => {
+              const isThreatOrLimit =
+                log.action?.includes('LIMIT') ||
+                log.action?.includes('INJECTION') ||
+                log.action?.includes('BLOCKED');
+              const isAdminAction =
+                log.action?.includes('PROMOT') ||
+                log.action?.includes('DEMOT') ||
+                log.action?.includes('ADMIN');
+              const isJournalAction = log.action?.includes('JOURNAL');
 
-          <div
-            className="border rounded-xl p-4 font-mono text-[11px] space-y-2 max-h-64 overflow-y-auto"
-            style={{
-              backgroundColor: 'var(--color-surface-elevated)',
-              borderColor: 'var(--color-border)',
-            }}
-          >
-            {metrics.auditLogPreview.length === 0 ? (
-              <div style={{ color: 'var(--color-text-muted)' }}>No audit events recorded yet.</div>
-            ) : (
-              metrics.auditLogPreview.map((log) => (
+              let badgeBg = 'bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/30';
+              if (isThreatOrLimit) {
+                badgeBg = 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30';
+              } else if (isAdminAction) {
+                badgeBg = 'bg-amber-500/15 text-amber-900 dark:text-amber-300 border-amber-500/30';
+              } else if (isJournalAction) {
+                badgeBg = 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/30';
+              }
+
+              return (
                 <div
                   key={log.id}
-                  className="flex flex-col sm:flex-row sm:items-center sm:justify-between py-1 border-b last:border-0 gap-1"
+                  className="p-3 hover:opacity-90 transition-colors flex flex-col md:flex-row md:items-center md:justify-between gap-2"
                   style={{ borderColor: 'var(--color-border)' }}
                 >
-                  <div className="flex items-center space-x-2">
-                    <span className="font-semibold" style={{ color: 'var(--color-accent-text)' }}>[{log.action}]</span>
-                    <span style={{ color: 'var(--color-text-muted)' }}>{log.actorEmail || log.actorUid}</span>
-                    {log.details && <span style={{ color: 'var(--color-text)' }}>- {log.details}</span>}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${badgeBg}`}>
+                      {log.action}
+                    </span>
+                    <span className="font-semibold" style={{ color: 'var(--color-text)' }}>
+                      {log.actorEmail || log.actorUid}
+                    </span>
+                    {log.targetUid && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20">
+                        Target: {log.targetUid}
+                      </span>
+                    )}
+                    {log.details && (
+                      <span className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
+                        — {log.details}
+                      </span>
+                    )}
                   </div>
-                  <span className="text-[10px] shrink-0" style={{ color: 'var(--color-text-muted)' }}>
-                    {new Date(log.timestamp).toLocaleTimeString()}
-                  </span>
+                  <div className="text-[10px] shrink-0 font-sans" style={{ color: 'var(--color-text-muted)' }}>
+                    {new Date(log.timestamp).toLocaleString()}
+                  </div>
                 </div>
-              ))
-            )}
-          </div>
+              );
+            })
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 };

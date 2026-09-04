@@ -911,6 +911,7 @@ app.post('/api/journal', getCurrentUser, async (req: Request, res: Response) => 
   try {
     checkRateLimit(user.uid, 'journal', 20, 60);
   } catch (err: any) {
+    recordAudit('RATE_LIMIT_EXCEEDED', user, 'Rate limit exceeded on /api/journal (20 req/min)');
     res.status(429).json({
       status: 'error',
       code: 'RATE_LIMIT_EXCEEDED',
@@ -937,6 +938,7 @@ app.post('/api/journal', getCurrentUser, async (req: Request, res: Response) => 
       checkPromptInjection(String(msg?.content || msg?.text || ''));
     }
   } catch (err: any) {
+    recordAudit('PROMPT_INJECTION_BLOCKED', user, 'Attempted prompt injection on /api/journal');
     res.status(400).json({
       status: 'error',
       code: 'PROMPT_INJECTION_DETECTED',
@@ -1218,6 +1220,7 @@ app.post('/api/chat', getCurrentUser, async (req: Request, res: Response) => {
   try {
     checkRateLimit(user.uid, 'chat', 15, 60);
   } catch (err: any) {
+    recordAudit('RATE_LIMIT_EXCEEDED', user, 'Rate limit exceeded on /api/chat (15 req/min)');
     res.status(429).json({
       status: 'error',
       code: 'RATE_LIMIT_EXCEEDED',
@@ -1240,6 +1243,7 @@ app.post('/api/chat', getCurrentUser, async (req: Request, res: Response) => {
       checkPromptInjection(String(msg?.content || msg?.text || ''));
     }
   } catch (err: any) {
+    recordAudit('PROMPT_INJECTION_BLOCKED', user, 'Attempted prompt injection on /api/chat');
     res.status(400).json({
       status: 'error',
       code: 'PROMPT_INJECTION_DETECTED',
@@ -1531,6 +1535,18 @@ app.get('/api/admin/users', requireAdmin, (_req: Request, res: Response) => {
   });
 
   res.json({ status: 'success', users: usersList });
+});
+
+// GET /api/admin/audit-log: Protected by require_admin
+app.get('/api/admin/audit-log', requireAdmin, (req: Request, res: Response) => {
+  const actor = req.user!;
+  recordAudit('ADMIN_VIEW_AUDIT_LOG', actor, 'Inspected system security audit logs');
+  res.json({
+    status: 'success',
+    count: auditLogs.length,
+    auditLogs: auditLogs,
+    logs: auditLogs,
+  });
 });
 
 // POST /api/admin/users/:uid/promote: Protected by require_admin

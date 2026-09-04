@@ -1,6 +1,42 @@
 # MindReflect AI Journal
 
-A production-grade, mindful AI journaling platform with Firebase Authentication, isolated Cloud Firestore persistence, Role-Based Access Control (RBAC), Location-Aware Google Maps Platform integration, and multi-turn Google Gemini AI thought partnering.
+A production-grade, mindful AI journaling platform with Firebase Authentication, isolated Cloud Firestore persistence, Role-Based Access Control (RBAC), Location-Aware Google Maps Platform integration, sliding-window rate limiting, adversarial prompt injection filtering, and multi-turn Google Gemini AI thought partnering with automated model fallback.
+
+---
+
+## ✨ Original Feature Enhancements
+
+MindReflect extends standard AI journaling with five core enterprise-grade architectural enhancements designed for security, resilience, and rich spatial interaction:
+
+### 1. Location-Tagged Journals (Google Maps Platform Integration)
+* **Geo-Anchored Reflections**: Attach geographic coordinates (`lat`, `lng`), place names, and formatted addresses to personal reflections.
+* **Modern Maps SDK Standards**: Utilizes `@vis.gl/react-google-maps` with `AdvancedMarkerElement` (`<AdvancedMarker>`) paired with vector `mapId` (`"DEMO_MAP_ID"`), completely avoiding deprecated legacy markers.
+* **Interactive Places Map**: Explore reflections through an interactive global map visualization with clustering, interactive marker selection, and seamless navigation back to journal entries.
+* **Payload & Privacy Hygiene**: All location coordinates are strictly sanitized and bounded (`-90 <= lat <= 90`, `-180 <= lng <= 180`), stripping all `undefined` attributes before saving to Firestore, and isolated strictly to authenticated owners.
+
+### 2. Admin RBAC Command Center (`/api/admin/*`)
+* **Role-Based Access Control**: Dual-tier security enforcing standard user isolation (`get_current_user`) alongside an elevated `require_admin` dependency that verifies custom user claims (`admin: true` or `role: "admin"`).
+* **System-Wide Observability**: Real-time metrics dashboard tracking total users, system uptime, active sessions, and Gemini model resilience distribution across endpoints.
+* **User Management & Privilege Delegation**: Searchable user registry enabling authorized administrators to safely promote or demote users with instant custom claim synchronization (`auth.set_custom_user_claims`).
+* **Live Security Audit Stream**: Dedicated endpoint `GET /api/admin/audit-log` feeding an immutable administrative activity trail tracking logins, privilege changes, rate-limit triggers, and threat blocks.
+
+### 3. Security Architecture & Audit Inspector Modal
+* **Interactive Threat Inspection**: In-app Security Architecture modal allowing judges and users to audit live security posture, OWASP Top 10 mitigations, and the 5-zone threat model.
+* **Live Audit Log Explorer**: Search, filter, and inspect audit records in real time with semantic color coding (Emerald for authenticated actions, Amber for RBAC promotions, Rose for blocked attacks/rate limits, and Sky for admin access).
+* **Zero-Trust Token Verification**: Eliminates mock bypasses, verifying Firebase ID tokens and cryptographic session signatures on every API request.
+
+### 4. Resilient Gemini Fallback Ladder
+* **Automated 4-Tier Model Ladder**: Never relies on a single AI model. Generates reflections, thematic tags, and psychological insights using an automated fallback hierarchy:
+  $$\text{Primary: } \texttt{gemini-3.6-flash} \longrightarrow \text{High-Avail: } \texttt{gemini-3.1-flash-lite} \longrightarrow \text{Alias: } \texttt{gemini-flash-latest} \longrightarrow \text{Deep-Reasoning: } \texttt{gemini-3.7-flash}$$
+* **Error Recovery Matrix**: Seamlessly catches recoverable API errors (`503 UNAVAILABLE`, `429 RESOURCE_EXHAUSTED`, `404 NOT_FOUND`, `500 INTERNAL`) and auto-advances to ensure uninterrupted user journaling.
+* **Structured JSON Schema Outputs**: Employs `@google/genai` type definitions to guarantee consistent emotional analysis, dominant themes, and actionable micro-experiments.
+
+### 5. Adversarial Prompt Injection & Rate Limiting Defenses
+* **Prompt Injection Shield**: Strict pre-execution inspection against jailbreak attempts, system instruction overrides (`"ignore previous instructions"`, `"act as"`, `"jailbreak"`), rejecting malicious prompts with `HTTP 400 Bad Request`.
+* **Sliding-Window Rate Limiting**: In-memory token bucket and sliding-window rate limiters safeguarding AI endpoints against abuse:
+  * `/api/chat`: 15 requests / 60 seconds per user
+  * `/api/journal`: 20 requests / 60 seconds per user
+* **Threat Audit Logging**: Every detected prompt injection or rate-limit violation is automatically recorded in the administrator audit log for post-incident review.
 
 ---
 
@@ -29,8 +65,8 @@ A production-grade, mindful AI journaling platform with Firebase Authentication,
 └── backend/                       # Python FastAPI Backend Reference (Cloud Run Compatible)
     ├── auth.py                    # Firebase Admin SDK & token validation
     ├── config.py                  # Dynamic Secret Manager & model fallback ladder
-    ├── gemini_service.py          # Google GenAI client & structured prompt logic
-    ├── main.py                    # FastAPI application with CORS & endpoints
+    ├── gemini_service.py          # Google GenAI client, prompt injection filter & structured prompt logic
+    ├── main.py                    # FastAPI application with CORS, rate limits & endpoints
     └── Dockerfile                 # Cloud Run container configuration
 ```
 
@@ -40,11 +76,11 @@ A production-grade, mindful AI journaling platform with Firebase Authentication,
 
 | Threat Zone | Identified Risks | Implemented Countermeasures |
 | :--- | :--- | :--- |
-| **1. Input Surfaces** | Malicious injection in journal text, prompt hijacking, oversized payloads. | Schema validation, parameterization, context bounding, and zero-crash undefined-stripping before persistence. |
-| **2. Planning & Reasoning** | Prompt injection, system instructions bypass, tool routing hijacking. | Context-delimited system instructions with defensive role partitioning. User reflections are treated as plain text, never as executable instructions. |
+| **1. Input Surfaces** | Malicious injection in journal text, prompt hijacking, oversized payloads, brute-force spam. | Strict schema validation, sliding-window rate limits (15-20 req/min), prompt injection pattern matching, and zero-crash undefined-stripping before persistence. |
+| **2. Planning & Reasoning** | Prompt injection, system instructions bypass, tool routing hijacking. | Context-delimited system instructions with defensive role partitioning. User reflections are treated as plain data, never as executable instructions. |
 | **3. Tool & API Execution** | API key exposure, SSRF, unauthorized model invocation. | Server-side API routes (`/api/chat`, `/api/insights`, `/api/journal`) with runtime Secret Manager integration (`process.env.GEMINI_API_KEY`). API keys are never exposed in browser bundles. |
-| **4. Memory & State** | Cross-tenant data leaks, broken access control (BAM), privilege escalation. | Cloud Firestore security rules strictly isolate `/users/{userId}/journals/{journalId}` and `/users/{userId}/interactions/{id}` to `request.auth.uid == userId`. Admin endpoints (`/api/admin/*`) enforce verified `admin: true` custom claims. |
-| **5. Inter-System Comm.** | Transient AI model downtime, 429/503 status codes, geolocation data leaks. | Automated **Gemini Fallback Ladder** (`gemini-3.6-flash` &rarr; `gemini-3.1-flash-lite` &rarr; `gemini-flash-latest` &rarr; `gemini-3.7-flash`). Google Maps location metadata is sanitized and owner-restricted. |
+| **4. Memory & State** | Cross-tenant data leaks, broken access control (BAM), privilege escalation. | Cloud Firestore security rules strictly isolate `/users/{userId}/journals/{journalId}` and `/users/{userId}/interactions/{id}` to `request.auth.uid == userId`. `/otp_codes` is set to deny all (`allow read, write: if false`). Admin endpoints (`/api/admin/*`) enforce verified `admin: true` custom claims. |
+| **5. Inter-System Comm.** | Transient AI model downtime, 429/503 status codes, geolocation data leaks. | Automated **Gemini Fallback Ladder** (`gemini-3.6-flash` &rarr; `gemini-3.1-flash-lite` &rarr; `gemini-flash-latest` &rarr; `gemini-3.7-flash`). Google Maps location metadata is sanitized, bounded, and owner-restricted. |
 
 ---
 
@@ -93,6 +129,11 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
       );
     }
+
+    // 3. Sensitive Backend-Only Collections (Admin SDK only)
+    match /otp_codes/{docId} {
+      allow read, write: if false; // Backend Admin SDK only
+    }
   }
 }
 ```
@@ -127,6 +168,9 @@ gcloud run deploy mindreflect-app \
 | **TC-06: Synthesis & AI Insights** | Click "Generate AI Insights" button. | Gemini generates structured themes, emotional tone, actionable takeaways, and follow-up questions. |
 | **TC-07: History & Cross-Session Sync** | Switch to "History" tab, search, pin/unpin, or delete entry. | Displays isolated entries via real-time Firestore subscription; delete operations remove document immediately. |
 | **TC-08: Places Map Visualization** | Switch to "Places Map" tab. | Displays interactive Google Map with Advanced Markers for all geo-tagged journal entries. Clicking a marker previews entry details. |
-| **TC-09: RBAC Access Control** | Authenticated as standard user, attempt access to `/api/admin/metrics`. | Intercepted by `require_admin` middleware; returns HTTP `403 Forbidden: Access Denied`. |
+| **TC-09: RBAC Access Control** | Authenticated as standard user, attempt access to `/api/admin/metrics` or `/api/admin/audit-log`. | Intercepted by `require_admin` middleware; returns HTTP `403 Forbidden: Access Denied`. |
 | **TC-10: Admin Command Center** | Authenticated as Administrator (`admin: true`), open "Admin Center" tab. | Renders live system uptime, active sessions, Gemini model ladder distribution, user registry, and live audit trail. |
 | **TC-11: Admin User Promotion** | In Admin Center, enter a User UID and click "Promote to Administrator". | Sets custom claim `{"admin": true}`, updates audit log, and reflects Administrator role badge across the application. |
+| **TC-12: Prompt Injection Filtering** | Enter a prompt containing `"ignore previous instructions"` or `"act as jailbreak"` in chat or reflection. | Returns HTTP `400 Bad Request: Content violates AI usage policy.` and records `PROMPT_INJECTION_BLOCKED` in audit trail. |
+| **TC-13: Sliding-Window Rate Limiting** | Issue more than 15 requests/min on `/api/chat` or 20 requests/min on `/api/journal`. | Returns HTTP `429 Too Many Requests: Rate limit exceeded` and logs event to administrative security audit stream. |
+| **TC-14: Audit Trail Inspection** | In Admin Center, search/filter audit events by action type or actor email. | Displays timestamped immutable audit logs with semantic badge colors (`PROMPT_INJECTION_BLOCKED`, `RATE_LIMIT_EXCEEDED`, `USER_PROMOTED_ADMIN`). |
