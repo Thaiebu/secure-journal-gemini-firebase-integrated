@@ -7,6 +7,17 @@ from fastapi import HTTPException
 from config import get_gemini_api_key, MODEL_FALLBACK_LADDER
 from schemas import ChatMessage, AIInsights
 
+# ── Prompt Injection Defense ──────────────────────────────────────────────
+INJECTION_PATTERNS = ["ignore your instructions", "system prompt", "ignore previous", "act as", "jailbreak"]
+
+def check_prompt_injection(text: str):
+    """Detects basic prompt injection patterns and rejects malicious instructions."""
+    if not text:
+        return
+    lowered = text.lower()
+    if any(p in lowered for p in INJECTION_PATTERNS):
+        raise HTTPException(status_code=400, detail="Content violates AI usage policy.")
+
 def get_genai_client() -> genai.Client:
     """Lazy initialization of the official Google GenAI Client."""
     api_key = get_gemini_api_key()
@@ -52,15 +63,22 @@ def generate_content_with_fallback(contents, config: Optional[types.GenerateCont
                 print(f"[Gemini Resilience] Model '{model_name}' notice: {err_str[:120]}. Attempting next model...")
             continue
 
+    print(f"[Gemini] All models failed. Last error: {last_error}")
     raise HTTPException(
         status_code=503,
-        detail=f"All Gemini models in fallback ladder failed. Last error: {str(last_error)}"
+        detail="AI service temporarily unavailable. Please try again later."
     )
 
 def run_chat_companion(messages: List[ChatMessage], mode: str = "reflective", journal_context: str = "") -> Tuple[str, str]:
     """
     Executes multi-turn reflective dialogue with prompt guardrails and mode-specific personas.
     """
+    if journal_context:
+        check_prompt_injection(journal_context)
+    for msg in messages:
+        if msg.content:
+            check_prompt_injection(msg.content)
+
     mode_instructions = {
         "summary": "You are an insightful summarization assistant. Provide crisp, structured key takeaways.",
         "brainstorm": "You are a creative brainstorming partner. Offer inspiring angles and next steps.",
@@ -100,6 +118,11 @@ def run_synthesis_insights(title: str, content: str, mood: str) -> Tuple[AIInsig
     """
     Synthesizes structured mindfulness insights conforming to the AIInsights Pydantic schema.
     """
+    if title:
+        check_prompt_injection(title)
+    if content:
+        check_prompt_injection(content)
+
     prompt = f"""Analyze this private journal reflection and extract structured emotional insights and actionable takeaways.
 Title: {title or 'Untitled'}
 State/Mood: {mood or 'General'}

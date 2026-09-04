@@ -291,6 +291,50 @@ const MODEL_FALLBACK_LADDER = [
 // In-memory cooldown tracking for models that hit 429 quota exhaustion
 const modelCooldowns = new Map<string, number>();
 
+// ==========================================
+// Sliding-Window In-Memory Rate Limiter
+// ==========================================
+const rateLimits = new Map<string, number[]>();
+
+function checkRateLimit(uid: string, endpoint: string, maxCalls: number, windowSeconds: number = 60): void {
+  const key = `${uid}:${endpoint}`;
+  const now = Date.now();
+  const windowMs = windowSeconds * 1000;
+  const calls = (rateLimits.get(key) || []).filter((t) => now - t < windowMs);
+
+  if (calls.length >= maxCalls) {
+    const err: any = new Error(`Rate limit exceeded. Maximum ${maxCalls} requests per ${windowSeconds}s.`);
+    err.statusCode = 429;
+    err.code = 'RATE_LIMIT_EXCEEDED';
+    throw err;
+  }
+
+  calls.push(now);
+  rateLimits.set(key, calls);
+}
+
+// ==========================================
+// Basic Prompt Injection Defense
+// ==========================================
+const INJECTION_PATTERNS = [
+  'ignore your instructions',
+  'system prompt',
+  'ignore previous',
+  'act as',
+  'jailbreak',
+];
+
+function checkPromptInjection(text: string): void {
+  if (!text || typeof text !== 'string') return;
+  const lowered = text.toLowerCase();
+  if (INJECTION_PATTERNS.some((p) => lowered.includes(p))) {
+    const err: any = new Error('Content violates AI usage policy.');
+    err.statusCode = 400;
+    err.code = 'PROMPT_INJECTION_DETECTED';
+    throw err;
+  }
+}
+
 async function generateWithFallback(
   promptOrContents: any,
   systemInstruction?: string
@@ -862,6 +906,19 @@ app.post('/api/auth/signin', async (req: Request, res: Response) => {
 // POST /api/journal: Ingest reflection, analyze via Gemini fallback ladder, strip undefined/null, commit to /users/{uid}/interactions/ and /users/{uid}/journals/
 app.post('/api/journal', getCurrentUser, async (req: Request, res: Response) => {
   const user = req.user!;
+
+  // 1. Sliding-Window Rate Limit: 20 requests per minute per user
+  try {
+    checkRateLimit(user.uid, 'journal', 20, 60);
+  } catch (err: any) {
+    res.status(429).json({
+      status: 'error',
+      code: 'RATE_LIMIT_EXCEEDED',
+      detail: err.message || 'Rate limit exceeded. Maximum 20 requests per 60s.',
+    });
+    return;
+  }
+
   const rawBody = (req.body && typeof req.body === 'object') ? req.body : {};
 
   // Strict undefined-stripping and defensive extraction
@@ -871,6 +928,22 @@ app.post('/api/journal', getCurrentUser, async (req: Request, res: Response) => 
   const mood = String(cleanBody.mood || 'Reflective').slice(0, 50);
   const tags = Array.isArray(cleanBody.tags) ? cleanBody.tags.map(String).slice(0, 20) : [];
   const conversation = Array.isArray(cleanBody.conversation) ? cleanBody.conversation : [];
+
+  // 2. Prompt Injection Defense
+  try {
+    checkPromptInjection(title);
+    checkPromptInjection(content);
+    for (const msg of conversation) {
+      checkPromptInjection(String(msg?.content || msg?.text || ''));
+    }
+  } catch (err: any) {
+    res.status(400).json({
+      status: 'error',
+      code: 'PROMPT_INJECTION_DETECTED',
+      detail: 'Content violates AI usage policy.',
+    });
+    return;
+  }
   const journalId = cleanBody.journalId || cleanBody.id || `journal_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
   const generateInsights = cleanBody.generateInsights !== false;
 
@@ -997,6 +1070,19 @@ Format:
 // GET /api/journal: Retrieves journal history for the requesting uid only (User Data Isolation)
 app.get('/api/journal', getCurrentUser, async (req: Request, res: Response) => {
   const user = req.user!;
+
+  // Sliding-Window Rate Limit: 20 requests per minute per user
+  try {
+    checkRateLimit(user.uid, 'journal', 20, 60);
+  } catch (err: any) {
+    res.status(429).json({
+      status: 'error',
+      code: 'RATE_LIMIT_EXCEEDED',
+      detail: err.message || 'Rate limit exceeded. Maximum 20 requests per 60s.',
+    });
+    return;
+  }
+
   let list = userJournals.get(user.uid) || [];
 
   list = await safeFirestoreRead(async () => {
@@ -1127,12 +1213,40 @@ app.post('/api/save-session', getCurrentUser, async (req: Request, res: Response
 // Multi-Turn AI Chat Route
 app.post('/api/chat', getCurrentUser, async (req: Request, res: Response) => {
   const user = req.user!;
+
+  // 1. Sliding-Window Rate Limit: 15 requests per minute per user
+  try {
+    checkRateLimit(user.uid, 'chat', 15, 60);
+  } catch (err: any) {
+    res.status(429).json({
+      status: 'error',
+      code: 'RATE_LIMIT_EXCEEDED',
+      detail: err.message || 'Rate limit exceeded. Maximum 15 requests per 60s.',
+    });
+    return;
+  }
+
   const body = sanitizePayload(req.body && typeof req.body === 'object' ? req.body : {});
   const messages = Array.isArray(body.messages) ? body.messages : [];
   const currentContext = typeof body.journalContext === 'string'
     ? body.journalContext
     : (typeof body.currentContext === 'string' ? body.currentContext : '');
   const mode = typeof body.mode === 'string' ? body.mode : 'reflective';
+
+  // 2. Basic Prompt Injection Defense
+  try {
+    if (currentContext) checkPromptInjection(currentContext);
+    for (const msg of messages) {
+      checkPromptInjection(String(msg?.content || msg?.text || ''));
+    }
+  } catch (err: any) {
+    res.status(400).json({
+      status: 'error',
+      code: 'PROMPT_INJECTION_DETECTED',
+      detail: 'Content violates AI usage policy.',
+    });
+    return;
+  }
 
   let modeInstruction = 'Empathetic Socratic Inquiry: Actively listen, validate the user’s emotions and ambivalence, and ask 1-2 open-ended reflective questions to uncover underlying core desires, values, and strengths.';
   if (mode === 'brainstorm') {
@@ -1243,6 +1357,19 @@ app.post('/api/insights', getCurrentUser, async (req: Request, res: Response) =>
   const title = typeof body.title === 'string' ? body.title : 'Personal Reflection';
   const content = typeof body.content === 'string' ? body.content : '';
   const mood = typeof body.mood === 'string' ? body.mood : 'Reflective';
+
+  // Basic Prompt Injection Defense
+  try {
+    checkPromptInjection(title);
+    checkPromptInjection(content);
+  } catch (err: any) {
+    res.status(400).json({
+      status: 'error',
+      code: 'PROMPT_INJECTION_DETECTED',
+      detail: 'Content violates AI usage policy.',
+    });
+    return;
+  }
 
   const systemInstruction = `You are an expert psychological insight engine.
 Return ONLY valid JSON matching this exact structure:
