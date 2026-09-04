@@ -344,6 +344,10 @@ export default function App() {
 
   // Generate Structured AI Insights and Synthesis
   const handleGenerateInsights = async () => {
+    if (!user) {
+      setSaveError('Authentication required to generate AI insights. Please sign in.');
+      return;
+    }
     if (!currentEntry || !currentEntry.content.trim()) return;
 
     setIsGeneratingInsights(true);
@@ -353,7 +357,7 @@ export default function App() {
     insightsAbortControllerRef.current = controller;
 
     try {
-      const headers = user ? await getAuthHeaders(user) : { 'Content-Type': 'application/json' };
+      const headers = await getAuthHeaders(user);
       const response = await fetch('/api/insights', {
         method: 'POST',
         headers,

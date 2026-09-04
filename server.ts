@@ -27,7 +27,31 @@ const PORT = 3000;
 // ==========================================
 // 1. Top-Level Defensive Middleware (Ordering Guarantee)
 // ==========================================
-app.use(cors());
+const allowedOriginRegex = /^(https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?|https:\/\/[a-zA-Z0-9-]+\.(run\.app|aistudio\.google\.com|google\.com))$/;
+const customAllowedOrigins = (process.env.ALLOWED_ORIGINS || '')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (such as same-origin, curl, server-to-server, mobile app)
+      if (!origin) {
+        return callback(null, true);
+      }
+      if (customAllowedOrigins.includes(origin) || allowedOriginRegex.test(origin)) {
+        return callback(null, true);
+      }
+      // Deny CORS by passing false (no Access-Control-Allow-Origin header is emitted)
+      return callback(null, false);
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+    maxAge: 86400,
+  })
+);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -334,9 +358,12 @@ async function generateWithFallback(
 // Validate Firebase ID Token or Verified Session Token (get_current_user dependency)
 async function authenticateToken(token: string): Promise<AuthenticatedUser> {
   const cleanToken = token.trim();
+  if (!cleanToken) {
+    throw new Error('Authorization token cannot be empty.');
+  }
 
-  // 1. Try Firebase Admin verification
-  if (isFirebaseAdminInitialized) {
+  // 1. Try Firebase Admin verification (for valid JWTs with 3 parts)
+  if (isFirebaseAdminInitialized && cleanToken.split('.').length === 3) {
     try {
       const decoded = await getAuth().verifyIdToken(cleanToken);
       const isAdmin = !!(decoded.admin === true || decoded.role === 'admin' || adminUids.has(decoded.uid) || adminUids.has(decoded.email || ''));
@@ -349,11 +376,11 @@ async function authenticateToken(token: string): Promise<AuthenticatedUser> {
         customClaims: decoded,
       };
     } catch {
-      // Continue to session store check if token is custom session token
+      // Firebase JWT signature check failed; do not fallback to unverified session
     }
   }
 
-  // 2. Check in-memory verified session store
+  // 2. Check in-memory verified session store (strict exact token match only)
   if (verifiedSessions.has(cleanToken)) {
     const session = verifiedSessions.get(cleanToken)!;
     if (Date.now() < session.expiresAt) {
@@ -366,52 +393,13 @@ async function authenticateToken(token: string): Promise<AuthenticatedUser> {
         role: isAdmin ? 'admin' : 'user',
       };
     }
+    // Expired session: immediately invalidate
     verifiedSessions.delete(cleanToken);
   }
 
-  // 3. Structured Self-Contained Session Tokens (sess_<uid>_<secret>)
-  if (cleanToken.startsWith('sess_') || cleanToken.startsWith('session_')) {
-    const extractedUid = cleanToken.replace('session_', '').replace('sess_', '');
-    // Check if directly in verifiedSessions
-    if (verifiedSessions.has(`sess_${extractedUid}`)) {
-      const session = verifiedSessions.get(`sess_${extractedUid}`)!;
-      if (Date.now() < session.expiresAt) {
-        const isAdmin = session.admin || adminUids.has(session.uid) || adminUids.has(session.email);
-        return {
-          uid: session.uid,
-          email: session.email,
-          name: session.name,
-          admin: isAdmin,
-          role: isAdmin ? 'admin' : 'user',
-        };
-      }
-    }
-    // Check registered accounts
-    for (const [_, account] of registeredAccounts.entries()) {
-      if (account.uid === extractedUid || cleanToken.includes(account.uid)) {
-        const isAdmin = adminUids.has(account.uid) || adminUids.has(account.email);
-        return {
-          uid: account.uid,
-          email: account.email,
-          name: account.name,
-          admin: isAdmin,
-          role: isAdmin ? 'admin' : 'user',
-        };
-      }
-    }
-    const isAdmin = adminUids.has(extractedUid);
-    return {
-      uid: extractedUid,
-      email: `${extractedUid}@mindreflect.app`,
-      name: 'Journaler',
-      admin: isAdmin,
-      role: isAdmin ? 'admin' : 'user',
-    };
-  }
-
-  // 4. Admin testing token (Strict whitelist check against environment variable only)
+  // 3. Admin testing token (Strict whitelist check against environment variable only)
   const envAdminSecret = process.env.ADMIN_SECRET_TOKEN;
-  if (envAdminSecret && cleanToken === envAdminSecret.trim()) {
+  if (envAdminSecret && envAdminSecret.trim().length >= 16 && cleanToken === envAdminSecret.trim()) {
     return {
       uid: 'admin_primary',
       email: 'thaiebu785@gmail.com',
@@ -421,61 +409,52 @@ async function authenticateToken(token: string): Promise<AuthenticatedUser> {
     };
   }
 
-  // 5. Default Deterministic User fallback for active tokens
-  const hashUid = `user_${crypto.createHash('sha256').update(cleanToken).digest('hex').slice(0, 16)}`;
-  const isDefaultAdmin = adminUids.has(hashUid);
-  return {
-    uid: hashUid,
-    email: `${hashUid}@mindreflect.app`,
-    name: 'Mindful Journaler',
-    admin: isDefaultAdmin,
-    role: isDefaultAdmin ? 'admin' : 'user',
-  };
+  // Zero unverified fallbacks: Any unverified token or forged string is strictly rejected
+  throw new Error('Invalid or unverified authorization token.');
 }
 
 // Authentication Middleware: get_current_user
+// Enforces that an authenticated user is present. Returns HTTP 401 Unauthorized if missing, expired, or invalid.
+// NO guest fallback allowed.
 async function getCurrentUser(req: Request, res: Response, next: NextFunction): Promise<void> {
   systemMetrics.totalRequests += 1;
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    // If no header provided, check query token or assign guest
-    const guestUid = `guest_${Date.now()}`;
-    req.user = {
-      uid: guestUid,
-      email: `${guestUid}@mindreflect.internal`,
-      name: 'Guest Journaler',
-      admin: false,
-      role: 'user',
-    };
-    next();
+    res.status(401).json({
+      status: 'error',
+      code: 'UNAUTHORIZED',
+      detail: 'HTTP 401 Unauthorized: Bearer authorization token is required.',
+      threatMitigation: 'Unauthenticated requests cannot access journal, chat, or user endpoints.',
+    });
     return;
   }
 
   const token = authHeader.replace('Bearer ', '').trim();
+  if (!token) {
+    res.status(401).json({
+      status: 'error',
+      code: 'UNAUTHORIZED',
+      detail: 'HTTP 401 Unauthorized: Authorization token cannot be empty.',
+    });
+    return;
+  }
+
   try {
     req.user = await authenticateToken(token);
     next();
   } catch (err: any) {
-    res.status(401).json({ status: 'error', code: 'UNAUTHORIZED', detail: 'Invalid or expired authorization token.' });
+    res.status(401).json({
+      status: 'error',
+      code: 'UNAUTHORIZED',
+      detail: 'HTTP 401 Unauthorized: Invalid or expired authorization token.',
+      threatMitigation: 'Token forgery and unverified session tokens are strictly rejected.',
+    });
   }
 }
 
-// Strict Authentication Middleware (Requires valid logged-in user)
-async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    res.status(401).json({ status: 'error', code: 'UNAUTHORIZED', detail: 'Authentication token required.' });
-    return;
-  }
-  const token = authHeader.replace('Bearer ', '').trim();
-  try {
-    req.user = await authenticateToken(token);
-    next();
-  } catch {
-    res.status(401).json({ status: 'error', code: 'UNAUTHORIZED', detail: 'Invalid or expired credentials.' });
-  }
-}
+// Strict Authentication Middleware (alias to getCurrentUser)
+const requireAuth = getCurrentUser;
 
 // Role-Based Access Control Middleware: require_admin
 // Returns HTTP 403 Forbidden if user.admin is not true and user.role != 'admin'
@@ -558,7 +537,8 @@ app.post('/api/auth/send-otp', (req: Request, res: Response) => {
     return;
   }
 
-  const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+  // Cryptographically secure 6-digit verification code
+  const otpCode = crypto.randomInt(100000, 1000000).toString();
   const expiresInSeconds = 600;
 
   otpStore.set(cleanEmail, {
@@ -568,12 +548,12 @@ app.post('/api/auth/send-otp', (req: Request, res: Response) => {
     attempts: 0,
   });
 
+  // Secure response: zero OTP code disclosure
   res.json({
     status: 'sent',
-    message: `A 6-digit verification code has been generated for ${cleanEmail}.`,
+    message: `A 6-digit verification code has been dispatched to ${cleanEmail}.`,
     email: cleanEmail,
     expiresInSeconds,
-    devOtpCode: otpCode,
   });
 });
 
@@ -587,51 +567,65 @@ app.post('/api/auth/verify-otp', (req: Request, res: Response) => {
   const cleanEmail = emailRaw.trim().toLowerCase();
   const cleanOtp = otpRaw.trim().replace(/\s+/g, '').replace(/-/g, '');
 
-  if (!cleanEmail) {
-    res.status(400).json({ status: 'error', detail: 'Email is required.' });
+  if (!cleanEmail || !cleanEmail.includes('@')) {
+    res.status(400).json({ status: 'error', detail: 'A valid email address is required.' });
+    return;
+  }
+
+  if (!cleanOtp || cleanOtp.length !== 6 || !/^\d{6}$/.test(cleanOtp)) {
+    res.status(400).json({ status: 'error', detail: 'A valid 6-digit numeric verification code is required.' });
     return;
   }
 
   const record = otpStore.get(cleanEmail);
   const now = Date.now();
-  let userName = nameRaw.trim() || (cleanEmail.includes('@') ? cleanEmail.split('@')[0] : 'Journaler');
 
-  if (record) {
-    if (now > record.expiresAt) {
-      otpStore.delete(cleanEmail);
-      res.status(400).json({ status: 'error', detail: 'Verification code has expired. Please request a new one.' });
-      return;
-    }
+  if (!record) {
+    res.status(400).json({
+      status: 'error',
+      detail: "No active verification code found for this email. Please request a new code.",
+    });
+    return;
+  }
 
+  if (now > record.expiresAt) {
+    otpStore.delete(cleanEmail);
+    res.status(400).json({ status: 'error', detail: 'Verification code has expired. Please request a new one.' });
+    return;
+  }
+
+  if (record.attempts >= 5) {
+    otpStore.delete(cleanEmail);
+    res.status(429).json({ status: 'error', detail: 'Too many incorrect attempts. Verification code invalidated. Please request a new code.' });
+    return;
+  }
+
+  // Constant-time OTP comparison (timing-attack resistant)
+  const isOtpValid = crypto.timingSafeEqual(
+    Buffer.from(record.otp, 'utf8'),
+    Buffer.from(cleanOtp, 'utf8')
+  );
+
+  if (!isOtpValid) {
+    record.attempts += 1;
     if (record.attempts >= 5) {
       otpStore.delete(cleanEmail);
-      res.status(429).json({ status: 'error', detail: 'Too many incorrect attempts. Please request a new code.' });
+      res.status(429).json({ status: 'error', detail: 'Too many incorrect attempts. Verification code invalidated. Please request a new code.' });
       return;
     }
-
-    if (record.otp === cleanOtp || cleanOtp === '000000') {
-      if (record.name) userName = record.name;
-      otpStore.delete(cleanEmail);
-    } else {
-      record.attempts += 1;
-      const remaining = 5 - record.attempts;
-      res.status(400).json({ status: 'error', detail: `Incorrect verification code. ${remaining} attempts remaining.` });
-      return;
-    }
-  } else {
-    if (cleanOtp.length !== 6 || !/^\d+$/.test(cleanOtp)) {
-      res.status(400).json({
-        status: 'error',
-        detail: "No active verification code found for this email. Please click 'Send Verification Code' to receive a code.",
-      });
-      return;
-    }
+    const remaining = 5 - record.attempts;
+    res.status(400).json({ status: 'error', detail: `Incorrect verification code. ${remaining} attempts remaining.` });
+    return;
   }
+
+  // Successfully verified: invalidate OTP immediately to prevent reuse
+  const userName = record.name || nameRaw.trim() || cleanEmail.split('@')[0];
+  otpStore.delete(cleanEmail);
 
   const uidHash = crypto.createHash('sha256').update(cleanEmail).digest('hex').slice(0, 16);
   const uid = `email_${uidHash}`;
-  const randomSecret = crypto.randomBytes(16).toString('hex');
-  const sessionToken = `sess_${uid}_${randomSecret}`;
+  const randomSecret = crypto.randomBytes(32).toString('hex');
+  const sessionToken = `sess_${randomSecret}`;
 
   // Automatically grant admin if email is the root admin email or designated admin
   const isAdmin = adminUids.has(cleanEmail) || cleanEmail === 'thaiebu785@gmail.com';
@@ -656,7 +650,7 @@ app.post('/api/auth/verify-otp', (req: Request, res: Response) => {
   res.json({
     status: 'success',
     message: 'Email verified successfully! You have been granted access to MindReflect.',
-    customToken: sessionToken,
+    sessionToken,
     uid,
     email: cleanEmail,
     displayName: userName,
@@ -756,8 +750,6 @@ app.post('/api/auth/signup', async (req: Request, res: Response) => {
     expiresAt: Date.now() + 7 * 24 * 3600 * 1000,
   };
   verifiedSessions.set(sessionToken, sessionData);
-  verifiedSessions.set(`sess_${uid}`, sessionData);
-  verifiedSessions.set(`session_${uid}`, sessionData);
 
   // Generate Firebase custom token if signing capability is available
   const customToken = await createCustomTokenSafe(uid, {
@@ -839,8 +831,6 @@ app.post('/api/auth/signin', async (req: Request, res: Response) => {
     expiresAt: Date.now() + 7 * 24 * 3600 * 1000,
   };
   verifiedSessions.set(sessionToken, sessionData);
-  verifiedSessions.set(`sess_${account.uid}`, sessionData);
-  verifiedSessions.set(`session_${account.uid}`, sessionData);
 
   // Generate Firebase custom token if signing capability is available
   const customToken = await createCustomTokenSafe(account.uid, {

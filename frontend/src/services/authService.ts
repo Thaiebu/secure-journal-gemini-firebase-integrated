@@ -34,11 +34,6 @@ export async function getAuthHeaders(user?: UserProfile | null): Promise<Record<
     return headers;
   }
 
-  if (user?.uid) {
-    headers['Authorization'] = `Bearer session_${user.uid}`;
-    return headers;
-  }
-
   return headers;
 }
 
@@ -134,8 +129,10 @@ export async function signUpWithEmailPassword(
         role: (data.admin || trimmedEmail === 'thaiebu785@gmail.com') ? 'admin' : 'user',
       };
 
-      const activeToken = data.sessionToken || (data.customToken?.startsWith('sess_') ? data.customToken : null) || `sess_${userProfile.uid}`;
-      localStorage.setItem('mindreflect_auth_token', activeToken);
+      const activeToken = data.sessionToken || (data.customToken?.startsWith('sess_') ? data.customToken : '');
+      if (activeToken) {
+        localStorage.setItem('mindreflect_auth_token', activeToken);
+      }
       localStorage.setItem('mindreflect_user_profile', JSON.stringify(userProfile));
       return { success: true, user: userProfile };
     } catch (serverErr: any) {
@@ -223,8 +220,10 @@ export async function signInWithEmailPassword(
         role: (data.admin || trimmedEmail === 'thaiebu785@gmail.com') ? 'admin' : 'user',
       };
 
-      const activeToken = data.sessionToken || (data.customToken?.startsWith('sess_') ? data.customToken : null) || `sess_${userProfile.uid}`;
-      localStorage.setItem('mindreflect_auth_token', activeToken);
+      const activeToken = data.sessionToken || (data.customToken?.startsWith('sess_') ? data.customToken : '');
+      if (activeToken) {
+        localStorage.setItem('mindreflect_auth_token', activeToken);
+      }
       localStorage.setItem('mindreflect_user_profile', JSON.stringify(userProfile));
       return { success: true, user: userProfile };
     } catch (serverErr: any) {
