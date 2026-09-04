@@ -72,16 +72,29 @@ export async function signUpWithEmailPassword(
       displayName: trimmedName,
     }).catch(() => null);
 
+    const tokenResult = await userCredential.user.getIdTokenResult().catch(() => null);
+    const isAdmin = Boolean(tokenResult?.claims?.admin || tokenResult?.claims?.role === 'admin');
+
     const userProfile: UserProfile = {
       uid: userCredential.user.uid,
       email: userCredential.user.email || trimmedEmail,
       displayName: trimmedName,
       photoURL: null,
-      admin: trimmedEmail === 'thaiebu785@gmail.com' || trimmedEmail.includes('admin'),
-      role: (trimmedEmail === 'thaiebu785@gmail.com' || trimmedEmail.includes('admin')) ? 'admin' : 'user',
+      admin: isAdmin,
+      role: isAdmin ? 'admin' : 'user',
+      customClaims: tokenResult?.claims || {},
     };
 
     localStorage.setItem('mindreflect_auth_token', `sess_${userProfile.uid}`);
+    localStorage.setItem('mindreflect_user_profile', JSON.stringify(userProfile));
+
+    // Also ensure backend registers this account so server-side fallback and endpoints stay in sync
+    fetch('/api/auth/signup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: trimmedName, email: trimmedEmail, password }),
+    }).catch(() => null);
+
     return { success: true, user: userProfile };
   } catch (clientErr: any) {
     console.warn('[Firebase Client Sign Up Notice]', clientErr?.code || clientErr?.message);
@@ -120,13 +133,14 @@ export async function signUpWithEmailPassword(
         }
       }
 
+      const isAdmin = Boolean(data.admin);
       const userProfile: UserProfile = {
         uid: data.uid,
         email: data.email,
         displayName: data.displayName || trimmedName,
         photoURL: null,
-        admin: data.admin ?? (trimmedEmail === 'thaiebu785@gmail.com'),
-        role: (data.admin || trimmedEmail === 'thaiebu785@gmail.com') ? 'admin' : 'user',
+        admin: isAdmin,
+        role: isAdmin ? 'admin' : 'user',
       };
 
       const activeToken = data.sessionToken || (data.customToken?.startsWith('sess_') ? data.customToken : '');
@@ -171,17 +185,29 @@ export async function signInWithEmailPassword(
   try {
     const userCredential = await signInWithEmailAndPassword(auth, trimmedEmail, password);
     const fbUser = userCredential.user;
+    const tokenResult = await fbUser.getIdTokenResult().catch(() => null);
+    const isAdmin = Boolean(tokenResult?.claims?.admin || tokenResult?.claims?.role === 'admin');
 
     const userProfile: UserProfile = {
       uid: fbUser.uid,
       email: fbUser.email || trimmedEmail,
       displayName: fbUser.displayName || cleanFallbackName(fbUser.displayName, trimmedEmail),
       photoURL: fbUser.photoURL || null,
-      admin: trimmedEmail === 'thaiebu785@gmail.com' || trimmedEmail.includes('admin'),
-      role: (trimmedEmail === 'thaiebu785@gmail.com' || trimmedEmail.includes('admin')) ? 'admin' : 'user',
+      admin: isAdmin,
+      role: isAdmin ? 'admin' : 'user',
+      customClaims: tokenResult?.claims || {},
     };
 
     localStorage.setItem('mindreflect_auth_token', `sess_${userProfile.uid}`);
+    localStorage.setItem('mindreflect_user_profile', JSON.stringify(userProfile));
+
+    // Also sync sign-in with backend session
+    fetch('/api/auth/signin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: trimmedEmail, password }),
+    }).catch(() => null);
+
     return { success: true, user: userProfile };
   } catch (clientErr: any) {
     console.warn('[Firebase Client Sign In Notice]', clientErr?.code || clientErr?.message);
@@ -211,13 +237,14 @@ export async function signInWithEmailPassword(
         }
       }
 
+      const isAdmin = Boolean(data.admin);
       const userProfile: UserProfile = {
         uid: data.uid,
         email: data.email,
         displayName: data.displayName || cleanFallbackName(null, trimmedEmail),
         photoURL: null,
-        admin: data.admin ?? (trimmedEmail === 'thaiebu785@gmail.com'),
-        role: (data.admin || trimmedEmail === 'thaiebu785@gmail.com') ? 'admin' : 'user',
+        admin: isAdmin,
+        role: isAdmin ? 'admin' : 'user',
       };
 
       const activeToken = data.sessionToken || (data.customToken?.startsWith('sess_') ? data.customToken : '');

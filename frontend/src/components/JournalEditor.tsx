@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { JournalEntry, ReflectionMode, SaveStatus, EntryLocation } from '../types';
 import { AICompanionChat } from './AICompanionChat';
 import { AIInsightsView } from './AIInsightsView';
@@ -71,11 +71,15 @@ export const JournalEditor: React.FC<JournalEditorProps> = ({
 
   const { activeSpeakingId, speak, stop } = useSpeech();
 
+  const entryContentRef = useRef(entry.content || '');
+  entryContentRef.current = entry.content || '';
+
   const { isListening, interimText, toggleListening } = useVoiceToText({
     onTranscript: (transcript, isFinal) => {
-      const currentContent = entry.content || '';
-      if (isFinal) {
-        const appended = currentContent.trim() ? `${currentContent.trim()} ${transcript}` : transcript;
+      if (isFinal && transcript) {
+        const currentContent = (entryContentRef.current || entry.content || '').trim();
+        const appended = currentContent ? `${currentContent} ${transcript}` : transcript;
+        entryContentRef.current = appended;
         onChangeField('content', appended);
       }
     },

@@ -1,6 +1,7 @@
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import path from 'path';
+import fs from 'fs';
 import crypto from 'crypto';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
@@ -11,6 +12,8 @@ import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 
 dotenv.config();
+
+const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || '').trim().toLowerCase();
 
 const getDirname = () => {
   try {
@@ -154,13 +157,6 @@ declare global {
   }
 }
 
-interface OtpRecord {
-  otp: string;
-  name?: string;
-  expiresAt: number;
-  attempts: number;
-}
-
 interface VerifiedSession {
   uid: string;
   email: string;
@@ -216,7 +212,6 @@ interface InteractionRecord {
 }
 
 // Global Stores
-const otpStore = new Map<string, OtpRecord>();
 const verifiedSessions = new Map<string, VerifiedSession>();
 const userJournals = new Map<string, BackendJournal[]>();
 const userInteractions = new Map<string, InteractionRecord[]>();
@@ -224,10 +219,10 @@ const auditLogs: AuditLogEntry[] = [];
 
 // Promoted admin UIDs/emails set
 const adminUids = new Set<string>([
-  'thaiebu785@gmail.com',
   'admin',
   'superadmin',
   'admin_primary',
+  ...(ADMIN_EMAIL ? [ADMIN_EMAIL] : []),
 ]);
 
 // Metrics tracking
@@ -446,7 +441,7 @@ async function authenticateToken(token: string): Promise<AuthenticatedUser> {
   if (envAdminSecret && envAdminSecret.trim().length >= 16 && cleanToken === envAdminSecret.trim()) {
     return {
       uid: 'admin_primary',
-      email: 'thaiebu785@gmail.com',
+      email: ADMIN_EMAIL || 'admin@mindreflect.internal',
       name: 'Primary Administrator',
       admin: true,
       role: 'admin',
@@ -569,141 +564,6 @@ app.get('/api/auth/me', getCurrentUser, (req: Request, res: Response) => {
   });
 });
 
-// OTP Request Route
-app.post('/api/auth/send-otp', (req: Request, res: Response) => {
-  const body = req.body && typeof req.body === 'object' ? req.body : {};
-  const emailRaw = typeof body.email === 'string' ? body.email : '';
-  const nameRaw = typeof body.name === 'string' ? body.name : '';
-
-  const cleanEmail = emailRaw.trim().toLowerCase();
-  if (!cleanEmail || !cleanEmail.includes('@')) {
-    res.status(400).json({ status: 'error', detail: 'A valid email address is required.' });
-    return;
-  }
-
-  // Cryptographically secure 6-digit verification code
-  const otpCode = crypto.randomInt(100000, 1000000).toString();
-  const expiresInSeconds = 600;
-
-  otpStore.set(cleanEmail, {
-    otp: otpCode,
-    name: nameRaw.trim() || cleanEmail.split('@')[0],
-    expiresAt: Date.now() + expiresInSeconds * 1000,
-    attempts: 0,
-  });
-
-  // Secure response: zero OTP code disclosure
-  res.json({
-    status: 'sent',
-    message: `A 6-digit verification code has been dispatched to ${cleanEmail}.`,
-    email: cleanEmail,
-    expiresInSeconds,
-  });
-});
-
-// OTP Verify Route
-app.post('/api/auth/verify-otp', (req: Request, res: Response) => {
-  const body = req.body && typeof req.body === 'object' ? req.body : {};
-  const emailRaw = typeof body.email === 'string' ? body.email : '';
-  const otpRaw = typeof body.otp === 'string' ? body.otp : '';
-  const nameRaw = typeof body.name === 'string' ? body.name : '';
-
-  const cleanEmail = emailRaw.trim().toLowerCase();
-  const cleanOtp = otpRaw.trim().replace(/\s+/g, '').replace(/-/g, '');
-
-  if (!cleanEmail || !cleanEmail.includes('@')) {
-    res.status(400).json({ status: 'error', detail: 'A valid email address is required.' });
-    return;
-  }
-
-  if (!cleanOtp || cleanOtp.length !== 6 || !/^\d{6}$/.test(cleanOtp)) {
-    res.status(400).json({ status: 'error', detail: 'A valid 6-digit numeric verification code is required.' });
-    return;
-  }
-
-  const record = otpStore.get(cleanEmail);
-  const now = Date.now();
-
-  if (!record) {
-    res.status(400).json({
-      status: 'error',
-      detail: "No active verification code found for this email. Please request a new code.",
-    });
-    return;
-  }
-
-  if (now > record.expiresAt) {
-    otpStore.delete(cleanEmail);
-    res.status(400).json({ status: 'error', detail: 'Verification code has expired. Please request a new one.' });
-    return;
-  }
-
-  if (record.attempts >= 5) {
-    otpStore.delete(cleanEmail);
-    res.status(429).json({ status: 'error', detail: 'Too many incorrect attempts. Verification code invalidated. Please request a new code.' });
-    return;
-  }
-
-  // Constant-time OTP comparison (timing-attack resistant)
-  const isOtpValid = crypto.timingSafeEqual(
-    Buffer.from(record.otp, 'utf8'),
-    Buffer.from(cleanOtp, 'utf8')
-  );
-
-  if (!isOtpValid) {
-    record.attempts += 1;
-    if (record.attempts >= 5) {
-      otpStore.delete(cleanEmail);
-      res.status(429).json({ status: 'error', detail: 'Too many incorrect attempts. Verification code invalidated. Please request a new code.' });
-      return;
-    }
-    const remaining = 5 - record.attempts;
-    res.status(400).json({ status: 'error', detail: `Incorrect verification code. ${remaining} attempts remaining.` });
-    return;
-  }
-
-  // Successfully verified: invalidate OTP immediately to prevent reuse
-  const userName = record.name || nameRaw.trim() || cleanEmail.split('@')[0];
-  otpStore.delete(cleanEmail);
-
-  const uidHash = crypto.createHash('sha256').update(cleanEmail).digest('hex').slice(0, 16);
-  const uid = `email_${uidHash}`;
-  const randomSecret = crypto.randomBytes(32).toString('hex');
-  const sessionToken = `sess_${randomSecret}`;
-
-  // Automatically grant admin if email is the root admin email or designated admin
-  const isAdmin = adminUids.has(cleanEmail) || cleanEmail === 'thaiebu785@gmail.com';
-  if (isAdmin) {
-    adminUids.add(uid);
-  }
-
-  verifiedSessions.set(sessionToken, {
-    uid,
-    email: cleanEmail,
-    name: userName,
-    admin: isAdmin,
-    role: isAdmin ? 'admin' : 'user',
-    expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
-  });
-
-  const appUrl = process.env.PUBLIC_APP_URL || '';
-  const accessLink = `${appUrl}/#access_token=${sessionToken}&uid=${uid}&email=${encodeURIComponent(cleanEmail)}`;
-
-  recordAudit('USER_LOGIN', { uid, email: cleanEmail, name: userName, admin: isAdmin, role: isAdmin ? 'admin' : 'user' }, 'User logged in via OTP');
-
-  res.json({
-    status: 'success',
-    message: 'Email verified successfully! You have been granted access to MindReflect.',
-    sessionToken,
-    uid,
-    email: cleanEmail,
-    displayName: userName,
-    admin: isAdmin,
-    role: isAdmin ? 'admin' : 'user',
-    accessLink,
-  });
-});
-
 // ---------------------------------------------------------------------------
 // Email & Password Authentication API (Fallback & Zero-Trust Verification)
 // ---------------------------------------------------------------------------
@@ -714,9 +574,89 @@ interface LocalUserAccount {
   passwordHash: string;
   salt: string;
   createdAt: number;
+  role?: 'admin' | 'user';
+  admin?: boolean;
 }
 
 const registeredAccounts = new Map<string, LocalUserAccount>();
+
+// Durable disk persistence to ensure accounts survive server restarts
+const DATA_DIR = path.join(process.cwd(), 'data');
+const ACCOUNTS_FILE = path.join(DATA_DIR, 'user_accounts.json');
+const ADMIN_REGISTRY_FILE = path.join(DATA_DIR, 'admin_registry.json');
+
+function ensureDataDir(): void {
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+  } catch (err) {
+    console.warn('[Storage] Data dir notice:', err);
+  }
+}
+
+function loadAccountsFromDisk(): void {
+  try {
+    ensureDataDir();
+    if (fs.existsSync(ACCOUNTS_FILE)) {
+      const raw = fs.readFileSync(ACCOUNTS_FILE, 'utf8');
+      const accountsArray: LocalUserAccount[] = JSON.parse(raw);
+      if (Array.isArray(accountsArray)) {
+        for (const acc of accountsArray) {
+          if (acc && acc.email) {
+            registeredAccounts.set(acc.email.toLowerCase(), acc);
+          }
+        }
+        console.log(`[Storage] Loaded ${registeredAccounts.size} persistent user account(s) from disk.`);
+      }
+    }
+  } catch (err) {
+    console.warn('[Storage] Failed to load accounts from disk:', err);
+  }
+}
+
+function saveAccountsToDisk(): void {
+  try {
+    ensureDataDir();
+    const accountsArray = Array.from(registeredAccounts.values());
+    fs.writeFileSync(ACCOUNTS_FILE, JSON.stringify(accountsArray, null, 2), 'utf8');
+  } catch (err) {
+    console.warn('[Storage] Failed to save accounts to disk:', err);
+  }
+}
+
+function loadAdminRegistryFromDisk(): void {
+  try {
+    ensureDataDir();
+    if (fs.existsSync(ADMIN_REGISTRY_FILE)) {
+      const raw = fs.readFileSync(ADMIN_REGISTRY_FILE, 'utf8');
+      const list: string[] = JSON.parse(raw);
+      if (Array.isArray(list)) {
+        for (const item of list) {
+          if (typeof item === 'string' && item.trim()) {
+            adminUids.add(item.trim());
+            adminUids.add(item.trim().toLowerCase());
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[AdminRegistry] Failed to load admin registry:', err);
+  }
+}
+
+function saveAdminRegistryToDisk(): void {
+  try {
+    ensureDataDir();
+    fs.writeFileSync(ADMIN_REGISTRY_FILE, JSON.stringify(Array.from(adminUids), null, 2), 'utf8');
+  } catch (err) {
+    console.warn('[AdminRegistry] Failed to save admin registry:', err);
+  }
+}
+
+// Immediately load accounts and admin registry upon server boot
+loadAccountsFromDisk();
+loadAdminRegistryFromDisk();
 
 function derivePasswordHash(password: string, salt: string): string {
   return crypto.pbkdf2Sync(password, salt, 100000, 32, 'sha256').toString('hex');
@@ -758,14 +698,33 @@ app.post('/api/auth/signup', async (req: Request, res: Response) => {
     return;
   }
 
-  if (registeredAccounts.has(cleanEmail)) {
-    res.status(400).json({ status: 'error', detail: 'This email is already registered. Please switch to Sign In.' });
+  // Check if account already exists in memory or in Firestore
+  let existingAccount = registeredAccounts.get(cleanEmail);
+  if (!existingAccount && adminDb) {
+    existingAccount = await safeFirestoreRead(async () => {
+      if (!adminDb) return undefined;
+      const docSnap = await adminDb.collection('app_user_accounts').doc(cleanEmail).get();
+      if (docSnap.exists) {
+        return docSnap.data() as LocalUserAccount;
+      }
+      return undefined;
+    }, undefined);
+    if (existingAccount) {
+      registeredAccounts.set(cleanEmail, existingAccount);
+    }
+  }
+
+  if (existingAccount) {
+    res.status(400).json({ status: 'error', code: 'ACCOUNT_EXISTS', detail: 'This email is already registered. Please switch to Sign In.' });
     return;
   }
 
   const salt = crypto.randomBytes(16).toString('hex');
   const passwordHash = derivePasswordHash(cleanPassword, salt);
   const uid = 'usr_' + crypto.createHash('sha256').update(cleanEmail).digest('hex').slice(0, 20);
+
+  const isRoot = Boolean(ADMIN_EMAIL && cleanEmail === ADMIN_EMAIL);
+  const isAdmin = Boolean(isRoot || adminUids.has(cleanEmail) || adminUids.has(uid));
 
   const newAccount: LocalUserAccount = {
     uid,
@@ -774,13 +733,23 @@ app.post('/api/auth/signup', async (req: Request, res: Response) => {
     passwordHash,
     salt,
     createdAt: Date.now(),
+    admin: isAdmin,
+    role: isAdmin ? 'admin' : 'user',
   };
   registeredAccounts.set(cleanEmail, newAccount);
+  saveAccountsToDisk();
 
-  const isAdmin = cleanEmail === 'thaiebu785@gmail.com' || cleanEmail.includes('admin');
+  safeFirestoreWrite(async () => {
+    if (!adminDb) return;
+    await adminDb.collection('app_user_accounts').doc(cleanEmail).set(newAccount);
+  }).catch((err) => {
+    console.warn('[Firestore User Account Save Warning]', err);
+  });
+
   if (isAdmin) {
     adminUids.add(uid);
     adminUids.add(cleanEmail);
+    saveAdminRegistryToDisk();
   }
 
   // Create session token
@@ -817,7 +786,7 @@ app.post('/api/auth/signup', async (req: Request, res: Response) => {
   });
 });
 
-// POST /api/auth/signin: Zero-trust signin fallback
+// POST /api/auth/signin: Zero-trust signin fallback (strictly verifies existing account and password)
 app.post('/api/auth/signin', async (req: Request, res: Response) => {
   const body = req.body && typeof req.body === 'object' ? req.body : {};
   const cleanEmail = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
@@ -833,35 +802,57 @@ app.post('/api/auth/signin', async (req: Request, res: Response) => {
   }
 
   let account = registeredAccounts.get(cleanEmail);
-  const isAdmin = cleanEmail === 'thaiebu785@gmail.com' || cleanEmail.includes('admin');
 
-  // If first time with this email & password, auto-register
-  if (!account) {
-    const salt = crypto.randomBytes(16).toString('hex');
-    const passwordHash = derivePasswordHash(cleanPassword, salt);
-    const uid = 'usr_' + crypto.createHash('sha256').update(cleanEmail).digest('hex').slice(0, 20);
-    const part = cleanEmail.split('@')[0];
-    const name = part.charAt(0).toUpperCase() + part.slice(1);
-    account = {
-      uid,
-      email: cleanEmail,
-      name,
-      passwordHash,
-      salt,
-      createdAt: Date.now(),
-    };
-    registeredAccounts.set(cleanEmail, account);
-  } else {
-    const isValid = verifyPassword(cleanPassword, account.salt, account.passwordHash);
-    if (!isValid) {
-      res.status(401).json({ status: 'error', detail: 'Incorrect email or password. Please try again.' });
-      return;
+  // If not in memory cache, look up in Firestore persistent accounts collection
+  if (!account && adminDb) {
+    account = await safeFirestoreRead(async () => {
+      if (!adminDb) return undefined;
+      const docSnap = await adminDb.collection('app_user_accounts').doc(cleanEmail).get();
+      if (docSnap.exists) {
+        return docSnap.data() as LocalUserAccount;
+      }
+      return undefined;
+    }, undefined);
+    if (account) {
+      registeredAccounts.set(cleanEmail, account);
     }
+  }
+
+  // Enforce Sign Up first requirement: never auto-register unknown users on sign in
+  if (!account) {
+    res.status(404).json({
+      status: 'error',
+      code: 'ACCOUNT_NOT_FOUND',
+      detail: 'No account found with this email. Please sign up first before signing in.',
+    });
+    return;
+  }
+
+  // Validate the provided password
+  const isValid = verifyPassword(cleanPassword, account.salt, account.passwordHash);
+  if (!isValid) {
+    res.status(401).json({
+      status: 'error',
+      code: 'INVALID_CREDENTIALS',
+      detail: 'Incorrect password. Please verify your password and try again.',
+    });
+    return;
+  }
+
+  const isRoot = Boolean(ADMIN_EMAIL && cleanEmail === ADMIN_EMAIL);
+  const isAdmin = Boolean(isRoot || adminUids.has(cleanEmail) || adminUids.has(account.uid) || account.admin);
+  
+  // Sync account state
+  if (account.admin !== isAdmin) {
+    account.admin = isAdmin;
+    account.role = isAdmin ? 'admin' : 'user';
+    saveAccountsToDisk();
   }
 
   if (isAdmin) {
     adminUids.add(account.uid);
     adminUids.add(cleanEmail);
+    saveAdminRegistryToDisk();
   }
 
   // Create session token
@@ -1504,33 +1495,88 @@ app.get('/api/admin/users', requireAdmin, (_req: Request, res: Response) => {
   const usersList: any[] = [];
   const processedUids = new Set<string>();
 
+  // 1. Process all registered accounts in storage
+  registeredAccounts.forEach((account) => {
+    const emailLower = account.email.toLowerCase();
+    processedUids.add(account.uid);
+    processedUids.add(emailLower);
+
+    const isRoot = Boolean(
+      (ADMIN_EMAIL && (emailLower === ADMIN_EMAIL || account.uid === ADMIN_EMAIL)) ||
+      account.uid === 'admin_primary'
+    );
+    const isAdmin = Boolean(
+      isRoot ||
+      account.admin ||
+      adminUids.has(account.uid) ||
+      adminUids.has(emailLower)
+    );
+
+    usersList.push({
+      uid: account.uid,
+      email: account.email,
+      name: account.name,
+      role: isAdmin ? 'admin' : 'user',
+      admin: isAdmin,
+      isRootAdmin: isRoot,
+      journalCount: (userJournals.get(account.uid) || []).length,
+      interactionCount: (userInteractions.get(account.uid) || []).length,
+    });
+  });
+
+  // 2. Process active sessions not yet processed
   verifiedSessions.forEach((session) => {
-    if (!processedUids.has(session.uid)) {
+    const emailLower = session.email ? session.email.toLowerCase() : '';
+    if (!processedUids.has(session.uid) && (!emailLower || !processedUids.has(emailLower))) {
       processedUids.add(session.uid);
-      const isAdmin = adminUids.has(session.uid) || adminUids.has(session.email);
+      if (emailLower) processedUids.add(emailLower);
+
+      const isRoot = Boolean(
+        (ADMIN_EMAIL && (emailLower === ADMIN_EMAIL || session.uid === ADMIN_EMAIL)) ||
+        session.uid === 'admin_primary'
+      );
+      const isAdmin = Boolean(
+        isRoot ||
+        session.admin ||
+        adminUids.has(session.uid) ||
+        (emailLower && adminUids.has(emailLower))
+      );
+
       usersList.push({
         uid: session.uid,
         email: session.email,
         name: session.name,
         role: isAdmin ? 'admin' : 'user',
         admin: isAdmin,
+        isRootAdmin: isRoot,
         journalCount: (userJournals.get(session.uid) || []).length,
         interactionCount: (userInteractions.get(session.uid) || []).length,
       });
     }
   });
 
+  // 3. Process static/promoted entries in adminUids not yet processed
   adminUids.forEach((uidOrEmail) => {
-    if (!processedUids.has(uidOrEmail)) {
+    const itemLower = uidOrEmail.toLowerCase();
+    if (!processedUids.has(itemLower) && !processedUids.has(uidOrEmail)) {
+      const isEmail = uidOrEmail.includes('@');
+      const isRoot = Boolean(
+        (ADMIN_EMAIL && itemLower === ADMIN_EMAIL) ||
+        uidOrEmail === 'admin_primary'
+      );
+
       usersList.push({
         uid: uidOrEmail,
-        email: uidOrEmail.includes('@') ? uidOrEmail : `${uidOrEmail}@mindreflect.app`,
-        name: 'System Admin',
+        email: isEmail ? uidOrEmail : `${uidOrEmail}@mindreflect.app`,
+        name: isRoot ? 'Primary Root Admin' : 'System Admin',
         role: 'admin',
         admin: true,
+        isRootAdmin: isRoot,
         journalCount: (userJournals.get(uidOrEmail) || []).length,
         interactionCount: (userInteractions.get(uidOrEmail) || []).length,
       });
+      processedUids.add(itemLower);
+      processedUids.add(uidOrEmail);
     }
   });
 
@@ -1552,19 +1598,60 @@ app.get('/api/admin/audit-log', requireAdmin, (req: Request, res: Response) => {
 // POST /api/admin/users/:uid/promote: Protected by require_admin
 app.post('/api/admin/users/:uid/promote', requireAdmin, async (req: Request, res: Response) => {
   const actor = req.user!;
-  const targetUid = req.params.uid;
+  const target = (req.params.uid || '').trim();
 
-  if (!targetUid) {
-    res.status(400).json({ status: 'error', detail: 'Target user UID is required.' });
+  if (!target) {
+    res.status(400).json({ status: 'error', detail: 'Target user UID or email is required.' });
     return;
   }
 
-  // 1. Add to in-memory admin registry
-  adminUids.add(targetUid);
+  const targetLower = target.toLowerCase();
+
+  // Find associated UID and email across registered accounts
+  let associatedUid = target;
+  let associatedEmail = targetLower.includes('@') ? targetLower : '';
+
+  for (const acc of registeredAccounts.values()) {
+    if (acc.uid === target || acc.email.toLowerCase() === targetLower) {
+      associatedUid = acc.uid;
+      associatedEmail = acc.email.toLowerCase();
+      acc.admin = true;
+      acc.role = 'admin';
+      break;
+    }
+  }
+
+  // Also check verified sessions
+  for (const session of verifiedSessions.values()) {
+    if (session.uid === target || (session.email && session.email.toLowerCase() === targetLower)) {
+      associatedUid = session.uid;
+      if (!associatedEmail && session.email) {
+        associatedEmail = session.email.toLowerCase();
+      }
+      break;
+    }
+  }
+
+  // 1. Add all identifiers to admin registry
+  adminUids.add(associatedUid);
+  adminUids.add(target);
+  adminUids.add(targetLower);
+  if (associatedEmail) {
+    adminUids.add(associatedEmail);
+  }
+
+  saveAccountsToDisk();
+  saveAdminRegistryToDisk();
 
   // 2. Update any active sessions
   verifiedSessions.forEach((session, token) => {
-    if (session.uid === targetUid || session.email === targetUid) {
+    const sEmailLower = session.email ? session.email.toLowerCase() : '';
+    if (
+      session.uid === associatedUid ||
+      session.uid === target ||
+      sEmailLower === targetLower ||
+      (associatedEmail && sEmailLower === associatedEmail)
+    ) {
       verifiedSessions.set(token, { ...session, admin: true, role: 'admin' });
     }
   });
@@ -1573,19 +1660,20 @@ app.post('/api/admin/users/:uid/promote', requireAdmin, async (req: Request, res
   let firebaseClaimsSet = false;
   if (isFirebaseAdminInitialized) {
     try {
-      await getAuth().setCustomUserClaims(targetUid, { admin: true, role: 'admin' });
+      await getAuth().setCustomUserClaims(associatedUid, { admin: true, role: 'admin' });
       firebaseClaimsSet = true;
     } catch {
       // Firebase custom claims are optional; session-based RBAC is authoritative
     }
   }
 
-  recordAudit('USER_PROMOTED_ADMIN', actor, `Promoted user ${targetUid} to Administrator`, targetUid);
+  recordAudit('USER_PROMOTED_ADMIN', actor, `Promoted user ${associatedEmail || associatedUid} to Administrator`, associatedUid);
 
   res.json({
     status: 'success',
-    message: `User ${targetUid} has been successfully promoted to Administrator.`,
-    uid: targetUid,
+    message: `User ${associatedEmail || associatedUid} has been successfully promoted to Administrator.`,
+    uid: associatedUid,
+    email: associatedEmail,
     claims: { admin: true, role: 'admin' },
     firebaseClaimsSet,
   });
@@ -1594,35 +1682,106 @@ app.post('/api/admin/users/:uid/promote', requireAdmin, async (req: Request, res
 // POST /api/admin/users/:uid/demote: Protected by require_admin
 app.post('/api/admin/users/:uid/demote', requireAdmin, async (req: Request, res: Response) => {
   const actor = req.user!;
-  const targetUid = req.params.uid;
+  const target = (req.params.uid || '').trim();
 
-  if (targetUid === 'thaiebu785@gmail.com' || targetUid === actor.uid) {
+  if (!target) {
+    res.status(400).json({ status: 'error', detail: 'Target user identifier is required.' });
+    return;
+  }
+
+  const targetLower = target.toLowerCase();
+
+  // 1. Check if target is directly the root administrator
+  const isDirectRoot = Boolean(
+    (ADMIN_EMAIL && (targetLower === ADMIN_EMAIL || target === ADMIN_EMAIL)) ||
+    target === 'admin_primary'
+  );
+  if (isDirectRoot) {
     res.status(400).json({ status: 'error', detail: 'Cannot demote the primary root administrator.' });
     return;
   }
 
-  adminUids.delete(targetUid);
+  // 2. Self-demotion check: prevent admin from accidentally demoting themselves
+  const isSelf = Boolean(
+    target === actor.uid ||
+    targetLower === actor.uid.toLowerCase() ||
+    (actor.email && targetLower === actor.email.toLowerCase())
+  );
+  if (isSelf) {
+    res.status(400).json({ status: 'error', detail: 'You cannot demote yourself. Another administrator must modify your role.' });
+    return;
+  }
 
+  // Find associated UID and email across accounts and sessions
+  let associatedUid = target;
+  let associatedEmail = targetLower.includes('@') ? targetLower : '';
+
+  for (const acc of registeredAccounts.values()) {
+    if (acc.uid === target || acc.email.toLowerCase() === targetLower) {
+      associatedUid = acc.uid;
+      associatedEmail = acc.email.toLowerCase();
+      acc.admin = false;
+      acc.role = 'user';
+      break;
+    }
+  }
+
+  for (const session of verifiedSessions.values()) {
+    if (session.uid === target || (session.email && session.email.toLowerCase() === targetLower)) {
+      associatedUid = session.uid;
+      if (!associatedEmail && session.email) {
+        associatedEmail = session.email.toLowerCase();
+      }
+      break;
+    }
+  }
+
+  // Secondary root admin check on resolved email
+  if (ADMIN_EMAIL && associatedEmail === ADMIN_EMAIL) {
+    res.status(400).json({ status: 'error', detail: 'Cannot demote the primary root administrator.' });
+    return;
+  }
+
+  // 3. Remove all forms from admin registry
+  adminUids.delete(target);
+  adminUids.delete(targetLower);
+  adminUids.delete(associatedUid);
+  if (associatedEmail) {
+    adminUids.delete(associatedEmail);
+  }
+
+  saveAccountsToDisk();
+  saveAdminRegistryToDisk();
+
+  // 4. Update any active sessions
   verifiedSessions.forEach((session, token) => {
-    if (session.uid === targetUid || session.email === targetUid) {
+    const sEmailLower = session.email ? session.email.toLowerCase() : '';
+    if (
+      session.uid === associatedUid ||
+      session.uid === target ||
+      sEmailLower === targetLower ||
+      (associatedEmail && sEmailLower === associatedEmail)
+    ) {
       verifiedSessions.set(token, { ...session, admin: false, role: 'user' });
     }
   });
 
+  // 5. Attempt Firebase Admin Custom Claims set
   if (isFirebaseAdminInitialized) {
     try {
-      await getAuth().setCustomUserClaims(targetUid, { admin: false, role: 'user' });
+      await getAuth().setCustomUserClaims(associatedUid, { admin: false, role: 'user' });
     } catch {
       // Firebase custom claims are optional; session-based RBAC is authoritative
     }
   }
 
-  recordAudit('USER_DEMOTED_ROLE', actor, `Demoted user ${targetUid} to Standard Journaler`, targetUid);
+  recordAudit('USER_DEMOTED_ROLE', actor, `Demoted user ${associatedEmail || associatedUid} to Standard User`, associatedUid);
 
   res.json({
     status: 'success',
-    message: `User ${targetUid} role set to Standard Journaler.`,
-    uid: targetUid,
+    message: `User ${associatedEmail || associatedUid} has been changed to Standard User.`,
+    uid: associatedUid,
+    email: associatedEmail,
     claims: { admin: false, role: 'user' },
   });
 });

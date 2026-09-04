@@ -17,7 +17,8 @@ security_scheme = HTTPBearer(auto_error=False)
 _firebase_initialized = False
 
 # List of admin emails / UIDs (mirroring server.ts)
-ADMIN_IDENTIFIERS = {"thaiebu785@gmail.com", "admin"}
+ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "").strip().lower()
+ADMIN_IDENTIFIERS = {"admin"} | ({ADMIN_EMAIL} if ADMIN_EMAIL else set())
 
 def init_firebase_admin():
     """Lazy initialisation of the Firebase Admin SDK."""
@@ -237,7 +238,7 @@ async def get_current_user(
     if env_admin_secret and token == env_admin_secret:
         return {
             "uid": "admin_primary",
-            "email": "thaiebu785@gmail.com",
+            "email": ADMIN_EMAIL or "admin@mindreflect.internal",
             "email_verified": True,
             "displayName": "Primary Administrator",
             "admin": True,

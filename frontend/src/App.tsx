@@ -63,7 +63,7 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: User | null) => {
       if (firebaseUser) {
         const tokenResult = await firebaseUser.getIdTokenResult().catch(() => null);
-        const isAdmin = !!(tokenResult?.claims?.admin || tokenResult?.claims?.role === 'admin' || firebaseUser.email === 'thaiebu785@gmail.com');
+        const isAdmin = Boolean(tokenResult?.claims?.admin || tokenResult?.claims?.role === 'admin');
         
         const userProfile: UserProfile = {
           uid: firebaseUser.uid,

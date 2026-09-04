@@ -1,0 +1,10 @@
+[
+  {
+    "uid": "usr_96260c0b83c96232bdfb",
+    "email": "user_test_verify@gmail.com",
+    "name": "Test User",
+    "passwordHash": "c3b14f511b76cf38e37a71a125b9c1233aa1b9cc69f107d9770419d8b4ae2d95",
+    "salt": "069870f44015574a82bd6f5eb022c924",
+    "createdAt": 1788521496273
+  }
+]

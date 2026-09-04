@@ -49,7 +49,18 @@ export function useVoiceToText({
   const [interimText, setInterimText] = useState<string>('');
   const sessionRef = useRef<VoiceRecognitionSession | null>(null);
 
+  const onTranscriptRef = useRef(onTranscript);
+  onTranscriptRef.current = onTranscript;
+
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
+
+  const isListeningRef = useRef(false);
+  const isExplicitStopRef = useRef(false);
+
   const stopListening = useCallback(() => {
+    isExplicitStopRef.current = true;
+    isListeningRef.current = false;
     if (sessionRef.current) {
       sessionRef.current.stop();
       sessionRef.current = null;
@@ -58,42 +69,63 @@ export function useVoiceToText({
     setInterimText('');
   }, []);
 
-  const startListening = useCallback(() => {
-    if (isListening) {
-      stopListening();
-      return;
-    }
-
-    setInterimText('');
-    setIsListening(true);
-
+  const launchSession = useCallback(() => {
     const session = startSpeechToText({
       onResult: (transcript, isFinal) => {
         if (isFinal) {
-          onTranscript(transcript, true);
+          onTranscriptRef.current(transcript, true);
           setInterimText('');
         } else {
           setInterimText(transcript);
-          onTranscript(transcript, false);
+          onTranscriptRef.current(transcript, false);
         }
       },
       onError: (err) => {
-        setIsListening(false);
-        setInterimText('');
-        if (onError) onError(err);
+        // Only terminate if explicit or critical error
+        if (err.includes('not-allowed')) {
+          isListeningRef.current = false;
+          setIsListening(false);
+          setInterimText('');
+        }
+        if (onErrorRef.current) onErrorRef.current(err);
       },
       onEnd: () => {
-        setIsListening(false);
-        setInterimText('');
+        // If the user did not explicitly stop and we are still in listening mode,
+        // seamlessly resume the recognition session so natural pauses and gaps don't kill dictation
+        if (!isExplicitStopRef.current && isListeningRef.current) {
+          setTimeout(() => {
+            if (!isExplicitStopRef.current && isListeningRef.current) {
+              launchSession();
+            }
+          }, 150);
+        } else {
+          setIsListening(false);
+          setInterimText('');
+        }
       },
     });
 
     if (session) {
       sessionRef.current = session;
     } else {
+      isListeningRef.current = false;
       setIsListening(false);
     }
-  }, [isListening, onTranscript, onError, stopListening]);
+  }, []);
+
+  const startListening = useCallback(() => {
+    if (isListeningRef.current) {
+      stopListening();
+      return;
+    }
+
+    isExplicitStopRef.current = false;
+    isListeningRef.current = true;
+    setInterimText('');
+    setIsListening(true);
+
+    launchSession();
+  }, [stopListening, launchSession]);
 
   useEffect(() => {
     return () => {

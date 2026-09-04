@@ -139,22 +139,28 @@ export function startSpeechToText(options: {
     recognition.interimResults = true;
     recognition.lang = 'en-US';
 
-    recognition.onresult = (event: any) => {
-      let interimTranscript = '';
-      let finalTranscript = '';
+    let lastFinalIndex = 0;
 
-      for (let i = event.resultIndex; i < event.results.length; ++i) {
+    recognition.onresult = (event: any) => {
+      let newFinalTranscript = '';
+      let interimTranscript = '';
+
+      for (let i = 0; i < event.results.length; ++i) {
         const result = event.results[i];
         if (result.isFinal) {
-          finalTranscript += result[0].transcript;
+          if (i >= lastFinalIndex) {
+            newFinalTranscript += result[0].transcript + ' ';
+            lastFinalIndex = i + 1;
+          }
         } else {
-          interimTranscript += result[0].transcript;
+          interimTranscript += result[0].transcript + ' ';
         }
       }
 
-      if (finalTranscript) {
-        options.onResult(finalTranscript.trim(), true);
-      } else if (interimTranscript) {
+      if (newFinalTranscript.trim()) {
+        options.onResult(newFinalTranscript.trim(), true);
+      }
+      if (interimTranscript.trim()) {
         options.onResult(interimTranscript.trim(), false);
       }
     };

@@ -42,19 +42,23 @@ export const AICompanionChat: React.FC<AICompanionChatProps> = ({
   onSelectMode,
 }) => {
   const [input, setInput] = useState('');
+  const inputRef = useRef('');
+  inputRef.current = input;
+
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { activeSpeakingId, speak, stop } = useSpeech();
 
   const { isListening, interimText, toggleListening } = useVoiceToText({
     onTranscript: (transcript, isFinal) => {
-      setInput((prev) => {
-        const cleanedPrev = prev.trim();
-        if (isFinal) {
-          return cleanedPrev ? `${cleanedPrev} ${transcript}` : transcript;
-        }
-        return prev;
-      });
+      if (isFinal && transcript) {
+        setInput((prev) => {
+          const current = (inputRef.current || prev || '').trim();
+          const appended = current ? `${current} ${transcript}` : transcript;
+          inputRef.current = appended;
+          return appended;
+        });
+      }
     },
     onError: (err) => {
       console.warn('[VoiceToText] Error:', err);
@@ -71,10 +75,11 @@ export const AICompanionChat: React.FC<AICompanionChatProps> = ({
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!input.trim() || isLoading) return;
-    const text = input.trim();
+    const currentText = (input || inputRef.current || '').trim();
+    if (!currentText || isLoading) return;
     setInput('');
-    await onSendMessage(text, reflectionMode);
+    inputRef.current = '';
+    await onSendMessage(currentText, reflectionMode);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -398,11 +403,14 @@ export const AICompanionChat: React.FC<AICompanionChatProps> = ({
           <textarea
             id="chat-input-textarea"
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => {
+              setInput(e.target.value);
+              inputRef.current = e.target.value;
+            }}
             onKeyDown={handleKeyDown}
             placeholder={
               isListening
-                ? 'Listening to your voice... (keep speaking)'
+                ? 'Listening to your voice... Pauses will append naturally.'
                 : 'Type or use Voice-to-Text to reflect (Shift+Enter for new line)...'
             }
             rows={2}

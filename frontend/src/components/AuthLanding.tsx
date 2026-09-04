@@ -306,7 +306,31 @@ export const AuthLanding: React.FC<AuthLandingProps> = ({
               className="mb-4 p-3 rounded-xl border text-xs flex items-start space-x-2 bg-rose-500/10 border-rose-500/25 text-rose-600 dark:text-rose-400"
             >
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span className="font-medium">{displayedError}</span>
+              <div className="flex-1">
+                <span className="font-medium">{displayedError}</span>
+                {displayedError.toLowerCase().includes('sign up first') && tab === 'signin' && (
+                  <div className="mt-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleTabChange('signup')}
+                      className="font-bold underline text-amber-600 dark:text-amber-400 hover:text-amber-700 cursor-pointer"
+                    >
+                      Click here to create an account
+                    </button>
+                  </div>
+                )}
+                {displayedError.toLowerCase().includes('switch to sign in') && tab === 'signup' && (
+                  <div className="mt-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleTabChange('signin')}
+                      className="font-bold underline text-amber-600 dark:text-amber-400 hover:text-amber-700 cursor-pointer"
+                    >
+                      Click here to Sign In
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

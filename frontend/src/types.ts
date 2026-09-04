@@ -47,6 +47,7 @@ export interface AdminUserItem {
   name: string;
   role: 'admin' | 'user';
   admin: boolean;
+  isRootAdmin?: boolean;
   journalCount: number;
   interactionCount: number;
 }

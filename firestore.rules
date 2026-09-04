@@ -15,8 +15,8 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // OTP Codes collection isolation: Backend Admin SDK only
-    match /otp_codes/{docId} {
+    // User accounts metadata isolation: Backend Admin SDK only
+    match /app_user_accounts/{docId} {
       allow read, write: if false; // Backend Admin SDK only
     }
 

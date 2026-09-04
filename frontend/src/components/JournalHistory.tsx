@@ -37,6 +37,7 @@ export const JournalHistory: React.FC<JournalHistoryProps> = ({
   const [selectedMood, setSelectedMood] = useState<string>('All');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const { activeSpeakingId, speak, stop } = useSpeech();
 
@@ -71,13 +72,12 @@ export const JournalHistory: React.FC<JournalHistoryProps> = ({
 
   const handleDelete = async (entryId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (window.confirm('Are you sure you want to delete this reflection? This action cannot be undone.')) {
-      setDeletingId(entryId);
-      try {
-        await onDeleteEntry(entryId);
-      } finally {
-        setDeletingId(null);
-      }
+    setDeletingId(entryId);
+    try {
+      await onDeleteEntry(entryId);
+      setConfirmDeleteId(null);
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -344,17 +344,45 @@ export const JournalHistory: React.FC<JournalHistoryProps> = ({
                     )}
                   </button>
 
-                  {/* Delete Button */}
-                  <button
-                    type="button"
-                    onClick={(e) => handleDelete(entry.id, e)}
-                    disabled={deletingId === entry.id}
-                    className="p-1.5 hover:text-rose-500 rounded-lg transition-colors cursor-pointer"
-                    style={{ color: 'var(--color-text-muted)' }}
-                    title="Delete reflection"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  {/* Delete Button & Inline Confirmation */}
+                  {confirmDeleteId === entry.id ? (
+                    <div className="inline-flex items-center space-x-1" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        onClick={(e) => handleDelete(entry.id, e)}
+                        disabled={deletingId === entry.id}
+                        className="px-2 py-1 text-[10px] font-bold bg-rose-600 hover:bg-rose-700 text-white rounded cursor-pointer transition shadow-2xs"
+                        title="Confirm deletion"
+                      >
+                        {deletingId === entry.id ? 'Deleting...' : 'Delete?'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setConfirmDeleteId(null);
+                        }}
+                        className="px-1.5 py-1 text-[10px] bg-stone-200 dark:bg-stone-700 text-stone-700 dark:text-stone-300 rounded cursor-pointer hover:opacity-80 transition"
+                        title="Cancel"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setConfirmDeleteId(entry.id);
+                      }}
+                      disabled={deletingId === entry.id}
+                      className="p-1.5 hover:text-rose-500 rounded-lg transition-colors cursor-pointer"
+                      style={{ color: 'var(--color-text-muted)' }}
+                      title="Delete reflection"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

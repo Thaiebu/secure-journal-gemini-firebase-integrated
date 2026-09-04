@@ -79,7 +79,7 @@ MindReflect extends standard AI journaling with five core enterprise-grade archi
 | **1. Input Surfaces** | Malicious injection in journal text, prompt hijacking, oversized payloads, brute-force spam. | Strict schema validation, sliding-window rate limits (15-20 req/min), prompt injection pattern matching, and zero-crash undefined-stripping before persistence. |
 | **2. Planning & Reasoning** | Prompt injection, system instructions bypass, tool routing hijacking. | Context-delimited system instructions with defensive role partitioning. User reflections are treated as plain data, never as executable instructions. |
 | **3. Tool & API Execution** | API key exposure, SSRF, unauthorized model invocation. | Server-side API routes (`/api/chat`, `/api/insights`, `/api/journal`) with runtime Secret Manager integration (`process.env.GEMINI_API_KEY`). API keys are never exposed in browser bundles. |
-| **4. Memory & State** | Cross-tenant data leaks, broken access control (BAM), privilege escalation. | Cloud Firestore security rules strictly isolate `/users/{userId}/journals/{journalId}` and `/users/{userId}/interactions/{id}` to `request.auth.uid == userId`. `/otp_codes` is set to deny all (`allow read, write: if false`). Admin endpoints (`/api/admin/*`) enforce verified `admin: true` custom claims. |
+| **4. Memory & State** | Cross-tenant data leaks, broken access control (BAM), privilege escalation. | Cloud Firestore security rules strictly isolate `/users/{userId}/journals/{journalId}` and `/users/{userId}/interactions/{id}` to `request.auth.uid == userId`. `/app_user_accounts` is set to deny all client access (`allow read, write: if false`). Admin endpoints (`/api/admin/*`) enforce verified `admin: true` custom claims. |
 | **5. Inter-System Comm.** | Transient AI model downtime, 429/503 status codes, geolocation data leaks. | Automated **Gemini Fallback Ladder** (`gemini-3.6-flash` &rarr; `gemini-3.1-flash-lite` &rarr; `gemini-flash-latest` &rarr; `gemini-3.7-flash`). Google Maps location metadata is sanitized, bounded, and owner-restricted. |
 
 ---
@@ -131,7 +131,7 @@ service cloud.firestore {
     }
 
     // 3. Sensitive Backend-Only Collections (Admin SDK only)
-    match /otp_codes/{docId} {
+    match /app_user_accounts/{docId} {
       allow read, write: if false; // Backend Admin SDK only
     }
   }

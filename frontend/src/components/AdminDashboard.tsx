@@ -25,6 +25,9 @@ import {
   AlertTriangle,
   FileText,
   Filter,
+  Info,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -42,6 +45,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
 
   const [promoteInputUid, setPromoteInputUid] = useState<string>('');
   const [isPromoting, setIsPromoting] = useState<boolean>(false);
+  const [demoteConfirmUid, setDemoteConfirmUid] = useState<string | null>(null);
+  const [isDemoting, setIsDemoting] = useState<string | null>(null);
+  const [showMultiAdminInfo, setShowMultiAdminInfo] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [auditSearchQuery, setAuditSearchQuery] = useState<string>('');
   const [auditFilterAction, setAuditFilterAction] = useState<string>('ALL');
@@ -100,15 +106,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
     }
   };
 
-  const handleDemote = async (uidToDemote: string) => {
-    if (!confirm(`Are you sure you want to demote user ${uidToDemote}?`)) return;
+  const executeDemote = async (uidToDemote: string) => {
+    setIsDemoting(uidToDemote);
     setActionMessage(null);
     try {
       const res = await demoteUserRole(uidToDemote);
       setActionMessage({ type: 'success', text: res.message });
+      setDemoteConfirmUid(null);
       await loadDashboardData();
     } catch (err: any) {
       setActionMessage({ type: 'error', text: err.message || 'Demotion failed.' });
+    } finally {
+      setIsDemoting(null);
     }
   };
 
@@ -446,6 +455,82 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
         </div>
       )}
 
+      {/* How Multiple Admins Work Informational Architecture Card */}
+      <div
+        className="p-5 rounded-2xl border transition-all shadow-2xs"
+        style={{
+          backgroundColor: 'var(--color-surface)',
+          borderColor: 'var(--color-border)',
+        }}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2.5">
+            <Info className="w-4 h-4 text-amber-500" />
+            <h2 className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
+              How Multiple Administrators Work
+            </h2>
+            <span
+              className="text-[10px] font-semibold px-2 py-0.5 rounded-full border border-amber-500/30 text-amber-800 dark:text-amber-200 bg-amber-500/10"
+            >
+              RBAC Architecture
+            </span>
+          </div>
+          <button
+            onClick={() => setShowMultiAdminInfo(!showMultiAdminInfo)}
+            className="text-xs flex items-center space-x-1 font-medium transition cursor-pointer hover:opacity-80"
+            style={{ color: 'var(--color-text-muted)' }}
+          >
+            <span>{showMultiAdminInfo ? 'Hide Guide' : 'Learn How It Works'}</span>
+            {showMultiAdminInfo ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
+        </div>
+
+        {showMultiAdminInfo && (
+          <div className="mt-4 pt-4 border-t space-y-3 text-xs leading-relaxed" style={{ borderColor: 'var(--color-border)' }}>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div
+                className="p-3.5 rounded-xl border space-y-1.5"
+                style={{ backgroundColor: 'var(--color-surface-elevated)', borderColor: 'var(--color-border)' }}
+              >
+                <div className="font-semibold flex items-center space-x-1.5 text-amber-700 dark:text-amber-300">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>1. Root Administrator</span>
+                </div>
+                <p style={{ color: 'var(--color-text-muted)' }}>
+                  Assigned by the server via <code className="px-1 py-0.5 rounded text-[10px] font-mono font-semibold bg-stone-200 dark:bg-stone-800">ADMIN_EMAIL</code>. This account has master authority and is permanently protected from demotion.
+                </p>
+              </div>
+
+              <div
+                className="p-3.5 rounded-xl border space-y-1.5"
+                style={{ backgroundColor: 'var(--color-surface-elevated)', borderColor: 'var(--color-border)' }}
+              >
+                <div className="font-semibold flex items-center space-x-1.5 text-amber-700 dark:text-amber-300">
+                  <UserCheck className="w-3.5 h-3.5" />
+                  <span>2. Delegated Admins</span>
+                </div>
+                <p style={{ color: 'var(--color-text-muted)' }}>
+                  Any active administrator can promote any registered user. Delegated admins can view system telemetry, audit logs, and manage user roles.
+                </p>
+              </div>
+
+              <div
+                className="p-3.5 rounded-xl border space-y-1.5"
+                style={{ backgroundColor: 'var(--color-surface-elevated)', borderColor: 'var(--color-border)' }}
+              >
+                <div className="font-semibold flex items-center space-x-1.5 text-amber-700 dark:text-amber-300">
+                  <ShieldAlert className="w-3.5 h-3.5" />
+                  <span>3. Safety &amp; Demotion Guards</span>
+                </div>
+                <p style={{ color: 'var(--color-text-muted)' }}>
+                  Admins cannot demote themselves (to prevent accidental lockout) and root admins cannot be demoted. All role changes persist securely to storage and claims.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* User Registry & RBAC Roles Table */}
       <div
         className="p-6 rounded-2xl border space-y-4 shadow-2xs"
@@ -504,69 +589,123 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ currentUser }) =
                   </td>
                 </tr>
               ) : (
-                filteredUsers.map((user) => (
-                  <tr
-                    key={user.uid}
-                    className="hover:opacity-90 transition-colors"
-                    style={{ borderColor: 'var(--color-border)' }}
-                  >
-                    <td className="py-3 px-3">
-                      <div className="font-semibold" style={{ color: 'var(--color-text)' }}>{user.name}</div>
-                      <div className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>{user.email}</div>
-                    </td>
-                    <td className="py-3 px-3 font-mono text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
-                      {user.uid.slice(0, 16)}...
-                    </td>
-                    <td className="py-3 px-3">
-                      <span
-                        className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border"
-                        style={{
-                          backgroundColor:
-                            user.admin || user.role === 'admin'
-                              ? 'var(--color-accent-subtle)'
-                              : 'var(--color-surface-elevated)',
-                          color:
-                            user.admin || user.role === 'admin'
-                              ? 'var(--color-accent-text)'
-                              : 'var(--color-text-muted)',
-                          borderColor: 'var(--color-border)',
-                        }}
-                      >
-                        {user.admin || user.role === 'admin' ? 'Administrator' : 'Standard User'}
-                      </span>
-                    </td>
-                    <td className="py-3 px-3 font-mono font-medium" style={{ color: 'var(--color-text)' }}>
-                      {user.journalCount}
-                    </td>
-                    <td className="py-3 px-3 font-mono font-medium" style={{ color: 'var(--color-text)' }}>
-                      {user.interactionCount}
-                    </td>
-                    <td className="py-3 px-3 text-right">
-                      {user.admin || user.role === 'admin' ? (
-                        <button
-                          id={`admin-btn-demote-${user.uid}`}
-                          onClick={() => handleDemote(user.uid)}
-                          disabled={user.email === 'thaiebu785@gmail.com'}
-                          className="px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer border disabled:opacity-30 disabled:cursor-not-allowed bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 dark:text-rose-300 border-rose-500/30 active:scale-97 shadow-2xs"
-                          title="Demote to Standard User"
-                        >
-                          <UserX className="w-3 h-3 inline mr-1 text-rose-600 dark:text-rose-400" />
-                          Demote
-                        </button>
-                      ) : (
-                        <button
-                          id={`admin-btn-promote-${user.uid}`}
-                          onClick={() => handlePromote(user.uid)}
-                          className="px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer border active:scale-97 shadow-2xs bg-amber-500/15 hover:bg-amber-500/25 text-amber-900 dark:text-amber-300 border-amber-500/40"
-                          title="Promote to Administrator"
-                        >
-                          <UserCheck className="w-3 h-3 inline mr-1 text-amber-600 dark:text-amber-400" />
-                          Promote
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))
+                filteredUsers.map((user) => {
+                  const isUserSelf = Boolean(
+                    user.uid === currentUser.uid ||
+                    (currentUser.email && user.email && user.email.toLowerCase() === currentUser.email.toLowerCase())
+                  );
+                  const isUserAdmin = Boolean(user.admin || user.role === 'admin' || user.isRootAdmin);
+
+                  return (
+                    <tr
+                      key={user.uid}
+                      className="hover:opacity-90 transition-colors"
+                      style={{ borderColor: 'var(--color-border)' }}
+                    >
+                      <td className="py-3 px-3">
+                        <div className="font-semibold" style={{ color: 'var(--color-text)' }}>{user.name}</div>
+                        <div className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>{user.email}</div>
+                      </td>
+                      <td className="py-3 px-3 font-mono text-[11px]" style={{ color: 'var(--color-text-muted)' }}>
+                        {user.uid.slice(0, 16)}...
+                      </td>
+                      <td className="py-3 px-3">
+                        {user.isRootAdmin ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border border-amber-500/40 text-amber-800 dark:text-amber-200 bg-amber-500/15">
+                            <ShieldCheck className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                            Root Admin
+                          </span>
+                        ) : isUserAdmin ? (
+                          <span
+                            className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border"
+                            style={{
+                              backgroundColor: 'var(--color-accent-subtle)',
+                              color: 'var(--color-accent-text)',
+                              borderColor: 'var(--color-border)',
+                            }}
+                          >
+                            Administrator
+                          </span>
+                        ) : (
+                          <span
+                            className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border"
+                            style={{
+                              backgroundColor: 'var(--color-surface-elevated)',
+                              color: 'var(--color-text-muted)',
+                              borderColor: 'var(--color-border)',
+                            }}
+                          >
+                            Standard User
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 px-3 font-mono font-medium" style={{ color: 'var(--color-text)' }}>
+                        {user.journalCount}
+                      </td>
+                      <td className="py-3 px-3 font-mono font-medium" style={{ color: 'var(--color-text)' }}>
+                        {user.interactionCount}
+                      </td>
+                      <td className="py-3 px-3 text-right">
+                        {user.isRootAdmin ? (
+                          <span
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium border border-amber-500/30 text-amber-800 dark:text-amber-200 bg-amber-500/10 cursor-default"
+                            title="Root Administrator cannot be demoted"
+                          >
+                            <ShieldAlert className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                            Root Protected
+                          </span>
+                        ) : isUserSelf ? (
+                          <span
+                            className="inline-flex items-center px-2.5 py-1 rounded-lg text-[11px] font-medium border border-stone-300 dark:border-stone-700 text-stone-500 dark:text-stone-400 bg-stone-100 dark:bg-stone-800/60 cursor-default"
+                            title="Current logged-in administrator account"
+                          >
+                            Current Session
+                          </span>
+                        ) : isUserAdmin ? (
+                          demoteConfirmUid === user.uid ? (
+                            <div className="inline-flex items-center gap-1.5 justify-end">
+                              <button
+                                id={`admin-btn-confirm-demote-${user.uid}`}
+                                onClick={() => executeDemote(user.uid || user.email)}
+                                disabled={isDemoting === (user.uid || user.email)}
+                                className="px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer bg-rose-600 hover:bg-rose-700 text-white shadow-xs"
+                              >
+                                {isDemoting === (user.uid || user.email) ? 'Demoting...' : 'Confirm Demote?'}
+                              </button>
+                              <button
+                                id={`admin-btn-cancel-demote-${user.uid}`}
+                                onClick={() => setDemoteConfirmUid(null)}
+                                className="px-2 py-1 rounded-lg text-[11px] font-medium transition-all cursor-pointer bg-stone-200 hover:bg-stone-300 dark:bg-stone-700 dark:hover:bg-stone-600 text-stone-700 dark:text-stone-200"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              id={`admin-btn-demote-${user.uid}`}
+                              onClick={() => setDemoteConfirmUid(user.uid)}
+                              className="px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer border bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 dark:text-rose-300 border-rose-500/30 active:scale-97 shadow-2xs"
+                              title="Demote to Standard User"
+                            >
+                              <UserX className="w-3 h-3 inline mr-1 text-rose-600 dark:text-rose-400" />
+                              Demote
+                            </button>
+                          )
+                        ) : (
+                          <button
+                            id={`admin-btn-promote-${user.uid}`}
+                            onClick={() => handlePromote(user.uid || user.email)}
+                            className="px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer border active:scale-97 shadow-2xs bg-amber-500/15 hover:bg-amber-500/25 text-amber-900 dark:text-amber-300 border-amber-500/40"
+                            title="Promote to Administrator"
+                          >
+                            <UserCheck className="w-3 h-3 inline mr-1 text-amber-600 dark:text-amber-400" />
+                            Promote
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
