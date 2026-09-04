@@ -10,7 +10,9 @@ export async function fetchCurrentUserRole(): Promise<UserProfile | null> {
     const res = await fetch('/api/auth/me', { headers });
     if (res.ok) {
       const data = await res.json();
-      return data.user as UserProfile;
+      if (data.user && !data.user.uid?.startsWith('guest_')) {
+        return data.user as UserProfile;
+      }
     }
   } catch (err) {
     console.warn('[RBAC] Could not fetch current user role:', err);

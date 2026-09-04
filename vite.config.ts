@@ -22,13 +22,17 @@ export default defineConfig(() => {
       port: 3000,
       hmr: process.env.DISABLE_HMR !== 'true',
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
-      proxy: {
-        '/api': {
-          target: process.env.VITE_BACKEND_URL || 'http://127.0.0.1:8000',
-          changeOrigin: true,
-          secure: false,
-        },
-      },
+      ...(process.env.VITE_BACKEND_URL
+        ? {
+            proxy: {
+              '/api': {
+                target: process.env.VITE_BACKEND_URL,
+                changeOrigin: true,
+                secure: false,
+              },
+            },
+          }
+        : {}),
     },
   };
 });

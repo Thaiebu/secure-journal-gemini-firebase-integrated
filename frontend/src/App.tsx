@@ -130,9 +130,10 @@ export default function App() {
     }
   };
 
-  // OTP Verified User Access Handler
+  // Verified User Access Handler
   const handleVerifiedAccess = (verifiedUser: UserProfile) => {
     setUser(verifiedUser);
+    localStorage.setItem('mindreflect_user_profile', JSON.stringify(verifiedUser));
     setCurrentEntry(createNewEntry(verifiedUser.uid));
     setActiveTab('editor');
     setAuthError(null);
@@ -141,9 +142,12 @@ export default function App() {
   // Sign Out Handler
   const handleSignOut = async () => {
     try {
-      await signOut(auth);
+      localStorage.removeItem('mindreflect_user_profile');
+      localStorage.removeItem('mindreflect_auth_token');
+      await signOut(auth).catch(() => null);
       setUser(null);
       setCurrentEntry(null);
+      setEntries([]);
       setActiveTab('editor');
     } catch (err: any) {
       console.error('[Sign Out Error]', err);

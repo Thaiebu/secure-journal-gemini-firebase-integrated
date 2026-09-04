@@ -4,10 +4,11 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "tsx server.ts",
     "dev:frontend": "vite",
-    "dev:backend": "cd backend && python main.py",
-    "build": "vite build",
+    "dev:backend": "cd backend && python3 main.py",
+    "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "start": "node dist/server.cjs",
     "preview": "vite preview --host 0.0.0.0 --port 3000",
     "lint": "tsc --noEmit"
   },

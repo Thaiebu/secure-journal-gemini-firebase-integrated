@@ -116,12 +116,12 @@ export async function signUpWithEmailPassword(
         };
       }
 
-      // If Firebase Admin returned a custom token, sign into client auth with it
-      if (data.customToken && typeof data.customToken === 'string') {
+      // If Firebase Admin returned a valid custom token (JWT), sign into client auth with it
+      if (data.customToken && typeof data.customToken === 'string' && data.customToken.split('.').length === 3) {
         try {
           await signInWithCustomToken(auth, data.customToken);
-        } catch (tokenErr) {
-          console.warn('[Custom Token Sign In Notice]', tokenErr);
+        } catch {
+          // Client continues with authenticated backend session
         }
       }
 
@@ -134,7 +134,9 @@ export async function signUpWithEmailPassword(
         role: (data.admin || trimmedEmail === 'thaiebu785@gmail.com') ? 'admin' : 'user',
       };
 
-      localStorage.setItem('mindreflect_auth_token', data.customToken || `sess_${userProfile.uid}`);
+      const activeToken = data.sessionToken || (data.customToken?.startsWith('sess_') ? data.customToken : null) || `sess_${userProfile.uid}`;
+      localStorage.setItem('mindreflect_auth_token', activeToken);
+      localStorage.setItem('mindreflect_user_profile', JSON.stringify(userProfile));
       return { success: true, user: userProfile };
     } catch (serverErr: any) {
       console.error('[Server Auth Fallback Error]', serverErr);
@@ -204,11 +206,11 @@ export async function signInWithEmailPassword(
         };
       }
 
-      if (data.customToken && typeof data.customToken === 'string') {
+      if (data.customToken && typeof data.customToken === 'string' && data.customToken.split('.').length === 3) {
         try {
           await signInWithCustomToken(auth, data.customToken);
-        } catch (tokenErr) {
-          console.warn('[Custom Token Sign In Notice]', tokenErr);
+        } catch {
+          // Client continues with authenticated backend session
         }
       }
 
@@ -221,7 +223,9 @@ export async function signInWithEmailPassword(
         role: (data.admin || trimmedEmail === 'thaiebu785@gmail.com') ? 'admin' : 'user',
       };
 
-      localStorage.setItem('mindreflect_auth_token', data.customToken || `sess_${userProfile.uid}`);
+      const activeToken = data.sessionToken || (data.customToken?.startsWith('sess_') ? data.customToken : null) || `sess_${userProfile.uid}`;
+      localStorage.setItem('mindreflect_auth_token', activeToken);
+      localStorage.setItem('mindreflect_user_profile', JSON.stringify(userProfile));
       return { success: true, user: userProfile };
     } catch (serverErr: any) {
       console.error('[Server Sign In Fallback Error]', serverErr);
