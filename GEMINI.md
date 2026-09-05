@@ -33,3 +33,19 @@
    - Upstream JSON body decoding & CORS before route handlers.
    - Secret loading from environment variables or Google Cloud Secret Manager at runtime.
 
+## External Notifications & Weekly Email Digest Directives
+
+1. **Email & Webhook Credential Management**:
+   - Zero hardcoding of mail provider secrets or webhook tokens.
+   - Support `RESEND_API_KEY`, `SENDGRID_API_KEY`, and `NOTIFICATION_FROM_EMAIL` loaded from environment variables.
+   - Provide real-time delivery logs, fallback HTML rendering, and safe simulation delivery if production email credentials are not yet provisioned.
+
+2. **Defense-in-Depth & Anti-SSRF Protection**:
+   - Strict RFC 5322 validation for recipient email addresses.
+   - Webhook validation restricts destination schemes to `https://` and blocks private/local IP addresses (`127.0.0.1`, `10.0.0.0/8`, `192.168.0.0/16`, `169.254.169.254`).
+   - Rate limit notification dispatchers to max 5 calls per minute per user.
+
+3. **Weekly Synthesis Specifications**:
+   - Synthesize weekly journal entries and habit completion consistency using the Gemini fallback ladder.
+   - Output structured metrics: habit completion percentage, active streaks, emotional valence shifts, key mindfulness achievements, and focused goals for the coming week.
+

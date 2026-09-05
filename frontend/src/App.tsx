@@ -15,6 +15,7 @@ import { JournalMapView } from './components/JournalMapView';
 import { HabitTracker } from './components/HabitTracker';
 import { AdminDashboard } from './components/AdminDashboard';
 import { SecurityModal } from './components/SecurityModal';
+import { WeeklyDigestModal } from './components/WeeklyDigestModal';
 import { subscribeUserJournals, persistJournalEntry, removeJournalEntry, persistInteractionLog } from './services/journalService';
 import { detectHabitsInJournal } from './services/habitService';
 import { getAuthHeaders } from './services/authService';
@@ -56,6 +57,7 @@ export default function App() {
   const [reflectionMode, setReflectionMode] = useState<ReflectionMode>('reflective');
 
   const [isSecurityModalOpen, setIsSecurityModalOpen] = useState<boolean>(false);
+  const [isWeeklyDigestModalOpen, setIsWeeklyDigestModalOpen] = useState<boolean>(false);
 
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const chatAbortControllerRef = useRef<AbortController | null>(null);
@@ -524,6 +526,7 @@ export default function App() {
           onSelectTab={setActiveTab}
           onSignOut={handleSignOut}
           onOpenSecurityModal={() => setIsSecurityModalOpen(true)}
+          onOpenWeeklyDigestModal={() => setIsWeeklyDigestModalOpen(true)}
           entriesCount={entries.length}
           locationsCount={entries.filter((e) => !!e.location).length}
         />
@@ -567,6 +570,7 @@ export default function App() {
               onDismissDetectedHabit={(hName) =>
                 setDetectedHabits((prev) => prev.filter((item) => item !== hName))
               }
+              onOpenWeeklyDigestModal={() => setIsWeeklyDigestModalOpen(true)}
             />
           ) : activeTab === 'map' ? (
             <JournalMapView
@@ -629,6 +633,12 @@ export default function App() {
           isOpen={isSecurityModalOpen}
           onClose={() => setIsSecurityModalOpen(false)}
           user={user}
+        />
+
+        <WeeklyDigestModal
+          isOpen={isWeeklyDigestModalOpen}
+          onClose={() => setIsWeeklyDigestModalOpen(false)}
+          currentUserEmail={user?.email || ''}
         />
       </div>
     </ThemeProvider>

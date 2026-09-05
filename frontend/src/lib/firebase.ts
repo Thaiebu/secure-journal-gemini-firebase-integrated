@@ -14,7 +14,7 @@ const firebaseConfig = {
   storageBucket: (import.meta.env.VITE_FIREBASE_STORAGE_BUCKET as string) || localConfig.storageBucket || '',
   messagingSenderId: (import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID as string) || localConfig.messagingSenderId || '',
   appId: (import.meta.env.VITE_FIREBASE_APP_ID as string) || localConfig.appId || '',
-  firestoreDatabaseId: (import.meta.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID as string) || localConfig.firestoreDatabaseId || 'ai-studio-b0ab2b89-9e56-4128-94c6-fc84ca0e643e',
+  firestoreDatabaseId: (import.meta.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID as string) || localConfig.firestoreDatabaseId || '',
 };
 
 const app = !getApps().length

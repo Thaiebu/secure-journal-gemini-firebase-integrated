@@ -37,3 +37,22 @@
    - Mirror all backend RBAC checks in `firestore.rules`: personal collections (`/users/{userId}/interactions`, `/users/{userId}/journals`) are isolated to `request.auth.uid == userId`, while `/admin/{document=**}` is isolated strictly to `request.auth.token.admin == true`.
    - Never allow insecure wildcard defaults (`allow read, write: if true;` is strictly forbidden).
 
+## External Notifications & Email Dispatch Directives
+
+1. **Zero-Hardcoding & Credential Hygiene**:
+   - Never hardcode email service keys (e.g. SendGrid, Resend, Mailgun) or webhook URLs in code.
+   - Load dispatch keys dynamically from environment variables (`RESEND_API_KEY`, `SENDGRID_API_KEY`, `NOTIFICATION_FROM_EMAIL`).
+   - If third-party external API keys are not supplied in the environment, the server must support graceful delivery logging and verified in-app dispatch preview without throwing unhandled crashes.
+
+2. **Anti-SSRF & Input Sanitization**:
+   - Strictly validate destination emails with RFC 5322 standard regex (`/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/`).
+   - For webhook notifications (Slack/Discord), enforce HTTPS URLs only and strictly ban loopback/private IP ranges (`127.0.0.1`, `localhost`, `10.0.0.0/8`, `192.168.0.0/16`, `172.16.0.0/12`, and GCP metadata IP `169.254.169.254`) to prevent Server-Side Request Forgery (SSRF).
+
+3. **Tenant Isolation & Rate Limiting**:
+   - Enforce `getCurrentUser` on all notification endpoints (`/api/notifications/*`). Users can only query, preview, or dispatch summaries synthesized from their own private journals and habits.
+   - Enforce rate limiting on email/notification triggers (max 5 requests per 60 seconds) to prevent spamming, denial of wallet, and outbound quota exhaustion.
+
+4. **AI-Powered Digest Generation**:
+   - Generate weekly reflections and habit performance syntheses using the Gemini fallback ladder (`gemini-3.6-flash` -> `gemini-3.1-flash-lite` -> `gemini-flash-latest` -> `gemini-3.7-flash`).
+   - Format digests into responsive HTML email templates with clean styling, habit streak metrics, emotional valence trajectories, and actionable growth recommendations.
+

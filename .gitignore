@@ -11,6 +11,15 @@ coverage/
 *.env
 *.secret
 
+# Scratchpad and deployment notes containing sensitive keys or credentials
+notes_to_deployment.txt
+*notes_to_deployment*
+*deployment_notes*
+*deploy*.txt
+*secret*.txt
+*.cred
+*.credentials
+
 # Firebase & Cloud Credentials (Strict Zero-Leak Protection)
 firebase-applet-config.json
 **/firebase-applet-config.json

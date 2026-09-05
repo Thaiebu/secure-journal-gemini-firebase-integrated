@@ -19,6 +19,7 @@ import {
   VolumeX,
 } from 'lucide-react';
 import { useSpeech } from '../hooks/useSpeech';
+import { MoodTrendGraph } from './MoodTrendGraph';
 
 interface JournalHistoryProps {
   entries: JournalEntry[];
@@ -150,6 +151,9 @@ export const JournalHistory: React.FC<JournalHistoryProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Visual Mood Trend & Emotional Tone Graphing */}
+      {entries.length > 0 && <MoodTrendGraph entries={entries} />}
 
       {/* Grid of Entries */}
       {filteredEntries.length === 0 ? (

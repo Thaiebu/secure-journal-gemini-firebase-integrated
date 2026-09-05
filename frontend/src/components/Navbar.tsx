@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { UserProfile } from '../types';
-import { BookOpen, Sparkles, History, Flame, LogOut, ShieldCheck, User, Compass, ChevronDown, Check } from 'lucide-react';
+import { BookOpen, Sparkles, History, Flame, LogOut, ShieldCheck, User, Compass, ChevronDown, Check, Mail } from 'lucide-react';
 import { ThemeToggle } from './ThemeToggle';
 
 interface NavbarProps {
@@ -9,6 +9,7 @@ interface NavbarProps {
   onSelectTab: (tab: 'editor' | 'history' | 'habits' | 'map' | 'admin') => void;
   onSignOut: () => void;
   onOpenSecurityModal: () => void;
+  onOpenWeeklyDigestModal?: () => void;
   entriesCount: number;
   locationsCount?: number;
 }
@@ -19,6 +20,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onSelectTab,
   onSignOut,
   onOpenSecurityModal,
+  onOpenWeeklyDigestModal,
   entriesCount,
   locationsCount = 0,
 }) => {
@@ -366,6 +368,35 @@ export const Navbar: React.FC<NavbarProps> = ({
                     </button>
                   )}
 
+                  {/* Weekly Digest Trigger for Mobile Viewports */}
+                  {onOpenWeeklyDigestModal && (
+                    <div className="pt-1 mt-1 border-t" style={{ borderColor: 'var(--color-border)' }}>
+                      <button
+                        id="mobile-nav-weekly-digest"
+                        onClick={() => {
+                          setIsMobileMenuOpen(false);
+                          onOpenWeeklyDigestModal();
+                        }}
+                        className="w-full flex items-center justify-between p-2 rounded-xl transition-all text-left group hover:bg-amber-500/10 active:scale-98 cursor-pointer"
+                        role="menuitem"
+                      >
+                        <div className="flex items-center space-x-2.5 min-w-0">
+                          <div className="w-7 h-7 rounded-lg border flex items-center justify-center shrink-0 bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400">
+                            <Mail className="w-3.5 h-3.5" />
+                          </div>
+                          <div className="min-w-0">
+                            <span className="font-semibold text-xs truncate text-amber-700 dark:text-amber-400">
+                              Weekly Email Digest
+                            </span>
+                            <div className="text-[10px] truncate" style={{ color: 'var(--color-text-muted)' }}>
+                              AI habit &amp; journal summary
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                    </div>
+                  )}
+
                   {/* Security & Isolation Dialog Trigger for Mobile Viewports */}
                   <div className="pt-1 mt-1 border-t" style={{ borderColor: 'var(--color-border)' }}>
                     <button
@@ -543,8 +574,24 @@ export const Navbar: React.FC<NavbarProps> = ({
           </nav>
         )}
 
-        {/* User Profile & Actions - Ordered: [Firestore Isolated Security] -> [Theme Switcher] -> [User & Sign Out] */}
+        {/* User Profile & Actions - Ordered: [Weekly Digest] -> [Firestore Isolated Security] -> [Theme Switcher] -> [User & Sign Out] */}
         <div className="flex items-center space-x-1 sm:space-x-2 md:space-x-2.5 shrink-0 min-w-0">
+          {/* 0. Weekly Digest Email Action */}
+          {onOpenWeeklyDigestModal && (
+            <button
+              id="btn-weekly-digest"
+              onClick={onOpenWeeklyDigestModal}
+              className="hidden md:flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/25 active:scale-97 shadow-2xs shrink-0"
+              title="Weekly Journal & Habit Email Digest (AI Generated)"
+              aria-label="Weekly Journal & Habit Digest"
+            >
+              <Mail className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+              <span className="font-semibold whitespace-nowrap">
+                Weekly Digest
+              </span>
+            </button>
+          )}
+
           {/* 1. Security & Isolation Status Indicator (Hidden on mobile to provide maximum space for profile & sign out) */}
           <button
             id="btn-security-info"

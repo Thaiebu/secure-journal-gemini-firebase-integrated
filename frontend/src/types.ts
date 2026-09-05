@@ -108,3 +108,45 @@ export interface Habit {
   completionHistory: Record<string, boolean>;
 }
 
+export interface DeliveryRecord {
+  id: string;
+  timestamp: number;
+  recipientEmail: string;
+  subject: string;
+  status: 'delivered' | 'sent_simulation' | 'failed';
+  provider: 'resend' | 'sendgrid' | 'in_app_dispatch';
+  summarySnippet: string;
+}
+
+export interface NotificationSettings {
+  email: string;
+  weeklyDigestEnabled: boolean;
+  deliveryDay: 'sunday' | 'monday' | 'friday';
+  deliveryTime: string;
+  habitMilestonesEnabled: boolean;
+  emotionalAlertsEnabled: boolean;
+  webhookUrl?: string;
+  webhookEnabled: boolean;
+  lastSentTimestamp?: number;
+  deliveryHistory: DeliveryRecord[];
+}
+
+export interface WeeklyDigestData {
+  timeframe: string;
+  generatedAt: number;
+  recipientEmail: string;
+  modelUsed: string;
+  summary: {
+    executiveSummary: string;
+    habitScore: number;
+    habitsAnalyzed: number;
+    topHabitStreak: { title: string; streak: number; emoji: string } | null;
+    habitsCompletionRate: number;
+    emotionalValence: string;
+    keyThemes: string[];
+    actionItems: string[];
+    inspirationQuote: string;
+  };
+  htmlEmail: string;
+}
+

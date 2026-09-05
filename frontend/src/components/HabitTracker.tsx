@@ -20,6 +20,7 @@ import {
   AlertCircle,
   Lightbulb,
   X,
+  Mail,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -27,6 +28,7 @@ interface HabitTrackerProps {
   user: UserProfile;
   detectedHabits?: string[];
   onDismissDetectedHabit?: (habitName: string) => void;
+  onOpenWeeklyDigestModal?: () => void;
 }
 
 const PRESET_EMOJIS = ['🧘', '🏃', '💧', '📚', '✍️', '🥗', '🌿', '🎯', '🛌', '🚶', '🍵', '💪'];
@@ -43,6 +45,7 @@ export const HabitTracker: React.FC<HabitTrackerProps> = ({
   user,
   detectedHabits = [],
   onDismissDetectedHabit,
+  onOpenWeeklyDigestModal,
 }) => {
   const [habits, setHabits] = useState<Habit[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -303,6 +306,29 @@ export const HabitTracker: React.FC<HabitTrackerProps> = ({
               </div>
             </div>
           </div>
+
+          {onOpenWeeklyDigestModal && (
+            <button
+              id="btn-habit-open-digest"
+              onClick={onOpenWeeklyDigestModal}
+              className="flex items-center space-x-2 px-3.5 py-2 rounded-xl border shadow-xs hover:border-amber-500/50 hover:bg-amber-500/5 transition cursor-pointer"
+              style={{
+                backgroundColor: 'var(--color-surface)',
+                borderColor: 'var(--color-border)',
+              }}
+              title="Open AI Weekly Summary & Email Dispatch"
+            >
+              <Mail className="w-4 h-4 text-amber-500" />
+              <div className="text-left">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                  Weekly Digest
+                </div>
+                <div className="text-xs font-semibold" style={{ color: 'var(--color-text)' }}>
+                  Email Summary &rarr;
+                </div>
+              </div>
+            </button>
+          )}
         </div>
       </div>
 

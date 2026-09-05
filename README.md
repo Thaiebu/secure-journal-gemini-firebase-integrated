@@ -38,36 +38,39 @@ MindReflect extends standard AI journaling with five core enterprise-grade archi
   * `/api/journal`: 20 requests / 60 seconds per user
 * **Threat Audit Logging**: Every detected prompt injection or rate-limit violation is automatically recorded in the administrator audit log for post-incident review.
 
+### 6. Automated AI Weekly Email Digest & Habit Summary (`/api/notifications/*`)
+* **AI-Synthesized Weekly Coaching**: End-of-week intelligence distilling the user's weekly journal entries, habit streaks, completion rates, and emotional valence trends into an actionable email digest.
+* **Production Multi-Provider Dispatch Engine**: Native integration with Resend and SendGrid API backends, with a graceful in-app simulation fallback guaranteeing zero crashes when running in local development or prototyping environments.
+* **Anti-SSRF Webhook Defense**: Optional Discord/Slack webhook forwarding strictly validated against SSRF attacks (restricting to HTTPS and rejecting RFC 1918 private/loopback IP address ranges).
+* **Owner-Bound Preferences & Delivery Audit**: Delivery schedules, recipient mailbox, and an immutable log of past transmissions saved in Firestore under `/users/{uid}/settings/notifications` and verified with user identity.
+
 ---
 
 ## 📁 Repository Structure
 
 ```
 .
-├── server.ts                      # Full-stack Node.js / Express middle-tier with Vite middleware
+├── server.ts                      # Full-stack Node.js / Express service + Vite middleware & RBAC endpoints
 ├── firestore.rules                # Cloud Firestore owner-bound & admin security rules
 ├── metadata.json                  # AI Studio application metadata
-├── package.json                   # Orchestrator & backend runtime dependencies
+├── package.json                   # Unified full-stack dependencies, build & start scripts
 ├── tsconfig.json                  # Root TypeScript configuration
-├── vite.config.ts                 # Root Vite configuration targeting frontend/
-├── .env.example                   # Environment variable declarations
+├── vite.config.ts                 # Root Vite bundler configuration targeting frontend/
+├── .env.example                   # Public template for required environment variables
+├── .env                           # Local environment secrets (strictly gitignored)
+├── notes_to_deployment.txt        # Deployment guide (API keys redacted & gitignored)
 │
-├── frontend/                      # Standalone React 19 + Vite + TypeScript Frontend
-│   ├── src/                       # React source components & hooks
-│   │   ├── components/            # Editor, Chat, Insights, History, MapView, AdminDashboard, Navbar
-│   │   ├── lib/                   # Firebase initialization & payload sanitizers
+├── frontend/                      # React 19 + TypeScript Client
+│   ├── src/                       # Source components, hooks & services
+│   │   ├── components/            # Editor, Chat, Insights, History, MapView, AdminDashboard, SecurityModal
+│   │   ├── lib/                   # Firebase initialization, utility helpers & payload sanitizers
 │   │   ├── services/              # Client Firestore subscriptions, mutations, & RBAC APIs
 │   │   └── types.ts               # Global TypeScript contracts & schemas
 │   ├── public/                    # Static assets & icons
 │   ├── index.html                 # HTML entry point with metadata sync
 │   └── package.json               # Frontend dependencies
 │
-└── backend/                       # Python FastAPI Backend Reference (Cloud Run Compatible)
-    ├── auth.py                    # Firebase Admin SDK & token validation
-    ├── config.py                  # Dynamic Secret Manager & model fallback ladder
-    ├── gemini_service.py          # Google GenAI client, prompt injection filter & structured prompt logic
-    ├── main.py                    # FastAPI application with CORS, rate limits & endpoints
-    └── Dockerfile                 # Cloud Run container configuration
+└── data/                          # Persistent local storage (user accounts, habits, journals, sessions)
 ```
 
 ---
@@ -79,8 +82,8 @@ MindReflect extends standard AI journaling with five core enterprise-grade archi
 | **1. Input Surfaces** | Malicious injection in journal text, prompt hijacking, oversized payloads, brute-force spam. | Strict schema validation, sliding-window rate limits (15-20 req/min), prompt injection pattern matching, and zero-crash undefined-stripping before persistence. |
 | **2. Planning & Reasoning** | Prompt injection, system instructions bypass, tool routing hijacking. | Context-delimited system instructions with defensive role partitioning. User reflections are treated as plain data, never as executable instructions. |
 | **3. Tool & API Execution** | API key exposure, SSRF, unauthorized model invocation. | Server-side API routes (`/api/chat`, `/api/insights`, `/api/journal`) with runtime Secret Manager integration (`process.env.GEMINI_API_KEY`). API keys are never exposed in browser bundles. |
-| **4. Memory & State** | Cross-tenant data leaks, broken access control (BAM), privilege escalation. | Cloud Firestore security rules strictly isolate `/users/{userId}/journals/{journalId}` and `/users/{userId}/interactions/{id}` to `request.auth.uid == userId`. `/app_user_accounts` is set to deny all client access (`allow read, write: if false`). Admin endpoints (`/api/admin/*`) enforce verified `admin: true` custom claims. |
-| **5. Inter-System Comm.** | Transient AI model downtime, 429/503 status codes, geolocation data leaks. | Automated **Gemini Fallback Ladder** (`gemini-3.6-flash` &rarr; `gemini-3.1-flash-lite` &rarr; `gemini-flash-latest` &rarr; `gemini-3.7-flash`). Google Maps location metadata is sanitized, bounded, and owner-restricted. |
+| **4. Memory & State** | Cross-tenant data leaks, broken access control (BAM), privilege escalation. | Cloud Firestore security rules strictly isolate `/users/{userId}/journals/{journalId}`, `/users/{userId}/interactions/{id}`, and `/users/{userId}/settings/{id}` to `request.auth.uid == userId`. `/app_user_accounts` is set to deny all client access (`allow read, write: if false`). Admin endpoints (`/api/admin/*`) enforce verified `admin: true` custom claims. |
+| **5. Inter-System Comm.** | Transient AI model downtime, 429/503 status codes, geolocation data leaks, SSRF via webhooks. | Automated **Gemini Fallback Ladder** (`gemini-3.6-flash` &rarr; `gemini-3.1-flash-lite` &rarr; `gemini-flash-latest` &rarr; `gemini-3.7-flash`). Google Maps location metadata is sanitized, bounded, and owner-restricted. Webhooks enforce strict HTTPS and anti-SSRF IP filtering. |
 
 ---
 
@@ -150,7 +153,7 @@ gcloud run deploy mindreflect-app \
   --region asia-southeast1 \
   --allow-unauthenticated \
   --set-secrets GEMINI_API_KEY=GEMINI_API_KEY:latest \
-  --set-env-vars FIREBASE_PROJECT_ID=gen-lang-client-0382888626,FIRESTORE_DATABASE_ID=ai-studio-b0ab2b89-9e56-4128-94c6-fc84ca0e643e \
+  --set-env-vars FIREBASE_PROJECT_ID=YOUR_PROJECT_ID,FIRESTORE_DATABASE_ID=YOUR_DATABASE_ID \
   --update-labels=dev-tutorial=cloud-run-ai-challenge
 ```
 
@@ -174,3 +177,6 @@ gcloud run deploy mindreflect-app \
 | **TC-12: Prompt Injection Filtering** | Enter a prompt containing `"ignore previous instructions"` or `"act as jailbreak"` in chat or reflection. | Returns HTTP `400 Bad Request: Content violates AI usage policy.` and records `PROMPT_INJECTION_BLOCKED` in audit trail. |
 | **TC-13: Sliding-Window Rate Limiting** | Issue more than 15 requests/min on `/api/chat` or 20 requests/min on `/api/journal`. | Returns HTTP `429 Too Many Requests: Rate limit exceeded` and logs event to administrative security audit stream. |
 | **TC-14: Audit Trail Inspection** | In Admin Center, search/filter audit events by action type or actor email. | Displays timestamped immutable audit logs with semantic badge colors (`PROMPT_INJECTION_BLOCKED`, `RATE_LIMIT_EXCEEDED`, `USER_PROMOTED_ADMIN`). |
+| **TC-15: Weekly AI Digest Preview** | Click "Weekly Digest" in Navbar or Habit Tracker, inspect preview. | Calls `/api/notifications/weekly-summary/preview`; Gemini synthesizes habit consistency score, emotional valence, and themes. |
+| **TC-16: Direct Email Digest Dispatch** | In Weekly Digest modal, click "Send To My Email Now". | Triggers `/api/notifications/weekly-summary/send`; dispatches responsive HTML email via Resend/SendGrid/in-app simulation and creates immutable delivery record. |
+| **TC-17: Notification Preferences & SSRF Protection** | In Digest Settings, set delivery day/time or input webhook URL. | Saves preferences to `/users/{uid}/settings/notifications`; rejects non-HTTPS or RFC 1918 private IP webhook URLs with clean validation feedback. |
