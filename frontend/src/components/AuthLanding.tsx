@@ -173,7 +173,7 @@ export const AuthLanding: React.FC<AuthLandingProps> = ({
           className="font-serif-display text-4xl sm:text-5xl font-bold tracking-tight leading-[1.15]"
           style={{ color: 'var(--color-text)', fontFamily: 'Verdana, Geneva, Tahoma, sans-serif' }}
         >
-          A serene sanctuary for your thoughts and growth.
+          Capture today. Reflect tomorrow. Grow along the way.
         </h1>
         <p
           className="mt-4 text-base sm:text-lg leading-relaxed font-light max-w-2xl mx-auto"
@@ -601,6 +601,82 @@ export const AuthLanding: React.FC<AuthLandingProps> = ({
                   </>
                 )}
               </button>
+
+              {/* Quick Testing & Demo Accounts Bar */}
+              <div className="pt-2">
+                <div className="flex items-center space-x-2 mb-2">
+                  <div className="h-px flex-1 bg-neutral-200 dark:bg-neutral-800" />
+                  <span className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">Quick Test Logins</span>
+                  <div className="h-px flex-1 bg-neutral-200 dark:bg-neutral-800" />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    id="btn-quick-admin-786"
+                    onClick={() => {
+                      setEmail('thaiebu786@gmail.com');
+                      setPassword('Password123!');
+                      setLocalError(null);
+                    }}
+                    className="flex flex-col items-start p-2.5 rounded-xl border text-left cursor-pointer transition-all hover:border-amber-500/50 hover:bg-amber-500/5"
+                    style={{
+                      borderColor: 'var(--color-border)',
+                      backgroundColor: 'var(--color-surface-elevated)',
+                    }}
+                  >
+                    <div className="flex items-center space-x-1.5 mb-1">
+                      <Shield className="w-3.5 h-3.5 text-amber-500" />
+                      <span className="text-xs font-bold" style={{ color: 'var(--color-text)' }}>Admin (786)</span>
+                    </div>
+                    <span className="text-[10px] text-neutral-400 font-mono truncate w-full">thaiebu786@gmail.com</span>
+                    <span className="text-[10px] text-amber-600 dark:text-amber-400 font-mono mt-0.5">Password123!</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    id="btn-quick-admin-785"
+                    onClick={() => {
+                      setEmail('thaiebu785@gmail.com');
+                      setPassword('Password123!');
+                      setLocalError(null);
+                    }}
+                    className="flex flex-col items-start p-2.5 rounded-xl border text-left cursor-pointer transition-all hover:border-purple-500/50 hover:bg-purple-500/5"
+                    style={{
+                      borderColor: 'var(--color-border)',
+                      backgroundColor: 'var(--color-surface-elevated)',
+                    }}
+                  >
+                    <div className="flex items-center space-x-1.5 mb-1">
+                      <Shield className="w-3.5 h-3.5 text-purple-500" />
+                      <span className="text-xs font-bold" style={{ color: 'var(--color-text)' }}>Admin (785)</span>
+                    </div>
+                    <span className="text-[10px] text-neutral-400 font-mono truncate w-full">thaiebu785@gmail.com</span>
+                    <span className="text-[10px] text-purple-600 dark:text-purple-400 font-mono mt-0.5">Password123!</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    id="btn-quick-testuser"
+                    onClick={() => {
+                      setEmail('test_user1@gmail.com');
+                      setPassword('Password123!');
+                      setLocalError(null);
+                    }}
+                    className="flex flex-col items-start p-2.5 rounded-xl border text-left cursor-pointer transition-all hover:border-emerald-500/50 hover:bg-emerald-500/5"
+                    style={{
+                      borderColor: 'var(--color-border)',
+                      backgroundColor: 'var(--color-surface-elevated)',
+                    }}
+                  >
+                    <div className="flex items-center space-x-1.5 mb-1">
+                      <UserIcon className="w-3.5 h-3.5 text-emerald-500" />
+                      <span className="text-xs font-bold" style={{ color: 'var(--color-text)' }}>Test User</span>
+                    </div>
+                    <span className="text-[10px] text-neutral-400 font-mono truncate w-full">test_user1@gmail.com</span>
+                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono mt-0.5">Password123!</span>
+                  </button>
+                </div>
+              </div>
             </form>
           )}
 

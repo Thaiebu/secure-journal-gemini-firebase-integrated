@@ -94,3 +94,17 @@ export interface JournalEntry {
 }
 
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
+
+export interface Habit {
+  id: string;
+  userId: string;
+  title: string;
+  emoji: string;
+  currentStreak: number;
+  bestStreak: number;
+  totalPoints: number;
+  createdAt: number;
+  updatedAt: number;
+  completionHistory: Record<string, boolean>;
+}
+

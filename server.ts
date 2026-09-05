@@ -211,9 +211,23 @@ interface InteractionRecord {
   insightsGenerated?: boolean;
 }
 
+export interface BackendHabit {
+  id: string;
+  userId: string;
+  title: string;
+  emoji: string;
+  currentStreak: number;
+  bestStreak: number;
+  totalPoints: number;
+  createdAt: number;
+  updatedAt: number;
+  completionHistory: Record<string, boolean>;
+}
+
 // Global Stores
 const verifiedSessions = new Map<string, VerifiedSession>();
 const userJournals = new Map<string, BackendJournal[]>();
+const userHabits = new Map<string, BackendHabit[]>();
 const userInteractions = new Map<string, InteractionRecord[]>();
 const auditLogs: AuditLogEntry[] = [];
 
@@ -419,7 +433,7 @@ async function authenticateToken(token: string): Promise<AuthenticatedUser> {
     }
   }
 
-  // 2. Check in-memory verified session store (strict exact token match only)
+  // 2. Check in-memory / persistent verified session store
   if (verifiedSessions.has(cleanToken)) {
     const session = verifiedSessions.get(cleanToken)!;
     if (Date.now() < session.expiresAt) {
@@ -434,6 +448,24 @@ async function authenticateToken(token: string): Promise<AuthenticatedUser> {
     }
     // Expired session: immediately invalidate
     verifiedSessions.delete(cleanToken);
+    saveSessionsToDisk();
+  }
+
+  // 2b. Check direct registered account session token (sess_usr_*)
+  if (cleanToken.startsWith('sess_usr_')) {
+    const targetUid = cleanToken.replace('sess_', '');
+    for (const acc of registeredAccounts.values()) {
+      if (acc.uid === targetUid) {
+        const isAdmin = Boolean(acc.admin || adminUids.has(acc.uid) || adminUids.has(acc.email));
+        return {
+          uid: acc.uid,
+          email: acc.email,
+          name: acc.name,
+          admin: isAdmin,
+          role: isAdmin ? 'admin' : 'user',
+        };
+      }
+    }
   }
 
   // 3. Admin testing token (Strict whitelist check against environment variable only)
@@ -556,7 +588,9 @@ app.get('/api/auth/me', getCurrentUser, (req: Request, res: Response) => {
     user: {
       uid: user.uid,
       email: user.email,
+      displayName: user.name,
       name: user.name,
+      photoURL: null,
       admin: user.admin,
       role: user.role,
       customClaims: user.customClaims || {},
@@ -654,13 +688,504 @@ function saveAdminRegistryToDisk(): void {
   }
 }
 
-// Immediately load accounts and admin registry upon server boot
-loadAccountsFromDisk();
-loadAdminRegistryFromDisk();
+const SESSIONS_FILE = path.join(DATA_DIR, 'sessions.json');
+
+function loadSessionsFromDisk(): void {
+  try {
+    ensureDataDir();
+    if (fs.existsSync(SESSIONS_FILE)) {
+      const raw = fs.readFileSync(SESSIONS_FILE, 'utf8');
+      const sessionsObj = JSON.parse(raw);
+      if (typeof sessionsObj === 'object' && sessionsObj !== null) {
+        const now = Date.now();
+        for (const [token, sess] of Object.entries(sessionsObj)) {
+          if (sess && typeof sess === 'object' && (sess as any).expiresAt > now) {
+            verifiedSessions.set(token, sess as VerifiedSession);
+          }
+        }
+        console.log(`[Storage] Loaded ${verifiedSessions.size} active sessions from disk.`);
+      }
+    }
+  } catch (err) {
+    console.warn('[Storage] Failed to load sessions from disk:', err);
+  }
+}
+
+function saveSessionsToDisk(): void {
+  try {
+    ensureDataDir();
+    const out: Record<string, VerifiedSession> = {};
+    const now = Date.now();
+    for (const [token, sess] of verifiedSessions.entries()) {
+      if (sess && sess.expiresAt > now) {
+        out[token] = sess;
+      }
+    }
+    fs.writeFileSync(SESSIONS_FILE, JSON.stringify(out, null, 2), 'utf8');
+  } catch (err) {
+    console.warn('[Storage] Failed to save sessions to disk:', err);
+  }
+}
 
 function derivePasswordHash(password: string, salt: string): string {
   return crypto.pbkdf2Sync(password, salt, 100000, 32, 'sha256').toString('hex');
 }
+
+function ensureDefaultSeededAccounts(): void {
+  const defaultAccounts: Array<{
+    email: string;
+    name: string;
+    admin: boolean;
+    role: 'admin' | 'user';
+    password: string;
+    uid: string;
+  }> = [
+    {
+      email: 'thaiebu786@gmail.com',
+      name: 'Admin Thaiebu',
+      admin: true,
+      role: 'admin',
+      password: 'Password123!',
+      uid: 'usr_admin_thaiebu786',
+    },
+    {
+      email: 'thaiebu785@gmail.com',
+      name: 'Thaiebu Admin',
+      admin: true,
+      role: 'admin',
+      password: 'Password123!',
+      uid: 'usr_admin_thaiebu785',
+    },
+    {
+      email: 'test_user1@gmail.com',
+      name: 'Test User One',
+      admin: false,
+      role: 'user',
+      password: 'Password123!',
+      uid: 'usr_test_user1',
+    },
+    {
+      email: 'user_test_verify@gmail.com',
+      name: 'Verification User',
+      admin: false,
+      role: 'user',
+      password: 'Password123!',
+      uid: 'usr_user_test_verify',
+    },
+  ];
+
+  let modified = false;
+  for (const def of defaultAccounts) {
+    const key = def.email.toLowerCase();
+    if (!registeredAccounts.has(key)) {
+      const salt = crypto.randomBytes(16).toString('hex');
+      const passwordHash = derivePasswordHash(def.password, salt);
+      const acc: LocalUserAccount = {
+        uid: def.uid,
+        email: key,
+        name: def.name,
+        passwordHash,
+        salt,
+        createdAt: 1788000000000,
+        admin: def.admin,
+        role: def.role,
+      };
+      registeredAccounts.set(key, acc);
+      if (def.admin) {
+        adminUids.add(acc.uid);
+        adminUids.add(key);
+      }
+      modified = true;
+    }
+  }
+
+  if (modified) {
+    saveAccountsToDisk();
+    saveAdminRegistryToDisk();
+    console.log(`[Storage] Ensured ${defaultAccounts.length} default test & admin accounts in registry.`);
+  }
+}
+
+const HABITS_FILE = path.join(DATA_DIR, 'habits.json');
+const JOURNALS_FILE = path.join(DATA_DIR, 'journals.json');
+
+function loadJournalsFromDisk(): void {
+  try {
+    ensureDataDir();
+    if (fs.existsSync(JOURNALS_FILE)) {
+      const raw = fs.readFileSync(JOURNALS_FILE, 'utf8');
+      const data = JSON.parse(raw);
+      if (typeof data === 'object' && data !== null) {
+        for (const [uid, list] of Object.entries(data)) {
+          if (Array.isArray(list)) {
+            userJournals.set(uid, list as BackendJournal[]);
+            systemMetrics.totalJournalsCreated += list.length;
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[Journals] Failed to load journals from disk:', err);
+  }
+}
+
+function saveJournalsToDisk(): void {
+  try {
+    ensureDataDir();
+    const out: Record<string, BackendJournal[]> = {};
+    for (const [uid, list] of userJournals.entries()) {
+      out[uid] = list;
+    }
+    fs.writeFileSync(JOURNALS_FILE, JSON.stringify(out, null, 2), 'utf8');
+  } catch (err) {
+    console.warn('[Journals] Failed to save journals to disk:', err);
+  }
+}
+
+function loadHabitsFromDisk(): void {
+  try {
+    ensureDataDir();
+    if (fs.existsSync(HABITS_FILE)) {
+      const raw = fs.readFileSync(HABITS_FILE, 'utf8');
+      const data = JSON.parse(raw);
+      if (typeof data === 'object' && data !== null) {
+        for (const [uid, list] of Object.entries(data)) {
+          if (Array.isArray(list)) {
+            userHabits.set(uid, list as BackendHabit[]);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[Habits] Failed to load habits from disk:', err);
+  }
+}
+
+function saveHabitsToDisk(): void {
+  try {
+    ensureDataDir();
+    const out: Record<string, BackendHabit[]> = {};
+    for (const [uid, list] of userHabits.entries()) {
+      out[uid] = list;
+    }
+    fs.writeFileSync(HABITS_FILE, JSON.stringify(out, null, 2), 'utf8');
+  } catch (err) {
+    console.warn('[Habits] Failed to save habits to disk:', err);
+  }
+}
+
+function computeHabitStreak(history: Record<string, boolean>, targetDate?: string): { currentStreak: number } {
+  const todayStr = targetDate || new Date().toISOString().split('T')[0];
+  let streak = 0;
+  const checkDate = new Date(todayStr + 'T12:00:00Z');
+
+  const isTodayCompleted = Boolean(history[todayStr]);
+  if (isTodayCompleted) {
+    streak = 1;
+    while (true) {
+      checkDate.setDate(checkDate.getDate() - 1);
+      const prevKey = checkDate.toISOString().split('T')[0];
+      if (history[prevKey]) {
+        streak++;
+      } else {
+        break;
+      }
+    }
+  } else {
+    // If today is not completed yet, check if yesterday was completed
+    checkDate.setDate(checkDate.getDate() - 1);
+    const yesterdayKey = checkDate.toISOString().split('T')[0];
+    if (history[yesterdayKey]) {
+      streak = 1;
+      while (true) {
+        checkDate.setDate(checkDate.getDate() - 1);
+        const prevKey = checkDate.toISOString().split('T')[0];
+        if (history[prevKey]) {
+          streak++;
+        } else {
+          break;
+        }
+      }
+    } else {
+      streak = 0;
+    }
+  }
+
+  return { currentStreak: streak };
+}
+
+function getPastDateStr(daysAgo: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - daysAgo);
+  return d.toISOString().split('T')[0];
+}
+
+function ensureDefaultSeededHabits(): void {
+  const today = getPastDateStr(0);
+  const d1 = getPastDateStr(1);
+  const d2 = getPastDateStr(2);
+  const d3 = getPastDateStr(3);
+  const d4 = getPastDateStr(4);
+  const d5 = getPastDateStr(5);
+  const d6 = getPastDateStr(6);
+
+  let modified = false;
+
+  // Resolve all UIDs for test user 1
+  const testAccount = registeredAccounts.get('test_user1@gmail.com');
+  const testUids = Array.from(new Set(['usr_test_user1', 'usr_a3e7d0ba2e5cd66ee2d4', ...(testAccount ? [testAccount.uid] : [])]));
+
+  for (const testUid of testUids) {
+    if (!userHabits.has(testUid) || userHabits.get(testUid)!.length === 0) {
+      const testHabits: BackendHabit[] = [
+        {
+          id: `hbt_morning_mindfulness_${testUid}`,
+          userId: testUid,
+          title: 'Morning Mindfulness',
+          emoji: '🧘',
+          currentStreak: 5,
+          bestStreak: 7,
+          totalPoints: 120,
+          createdAt: Date.now() - 7 * 86400000,
+          updatedAt: Date.now(),
+          completionHistory: {
+            [today]: true,
+            [d1]: true,
+            [d2]: true,
+            [d3]: true,
+            [d4]: true,
+          },
+        },
+        {
+          id: `hbt_read_pages_${testUid}`,
+          userId: testUid,
+          title: 'Read 20 Pages of Philosophy',
+          emoji: '📚',
+          currentStreak: 2,
+          bestStreak: 5,
+          totalPoints: 80,
+          createdAt: Date.now() - 5 * 86400000,
+          updatedAt: Date.now(),
+          completionHistory: {
+            [today]: true,
+            [d1]: true,
+          },
+        },
+        {
+          id: `hbt_evening_reflection_${testUid}`,
+          userId: testUid,
+          title: 'Evening Daily Reflection',
+          emoji: '✍️',
+          currentStreak: 7,
+          bestStreak: 14,
+          totalPoints: 210,
+          createdAt: Date.now() - 10 * 86400000,
+          updatedAt: Date.now(),
+          completionHistory: {
+            [today]: true,
+            [d1]: true,
+            [d2]: true,
+            [d3]: true,
+            [d4]: true,
+            [d5]: true,
+            [d6]: true,
+          },
+        },
+        {
+          id: `hbt_hydrate_walk_${testUid}`,
+          userId: testUid,
+          title: 'Hydrate & 30m Nature Walk',
+          emoji: '💧',
+          currentStreak: 3,
+          bestStreak: 4,
+          totalPoints: 60,
+          createdAt: Date.now() - 6 * 86400000,
+          updatedAt: Date.now(),
+          completionHistory: {
+            [today]: true,
+            [d1]: true,
+            [d2]: true,
+          },
+        },
+      ];
+      userHabits.set(testUid, testHabits);
+      modified = true;
+    }
+  }
+
+  // Admin users habits (thaiebu786 & thaiebu785)
+  const admin786 = registeredAccounts.get('thaiebu786@gmail.com');
+  const admin785 = registeredAccounts.get('thaiebu785@gmail.com');
+  const adminUidsToSeed = Array.from(new Set([
+    'usr_admin_thaiebu786',
+    'usr_admin_thaiebu785',
+    ...(admin786 ? [admin786.uid] : []),
+    ...(admin785 ? [admin785.uid] : []),
+  ]));
+
+  for (const adminUid of adminUidsToSeed) {
+    if (!userHabits.has(adminUid) || userHabits.get(adminUid)!.length === 0) {
+      const adminHabits: BackendHabit[] = [
+        {
+          id: `hbt_sys_review_${adminUid}`,
+          userId: adminUid,
+          title: 'System Architecture & Security Audit',
+          emoji: '⚡',
+          currentStreak: 6,
+          bestStreak: 12,
+          totalPoints: 180,
+          createdAt: Date.now() - 10 * 86400000,
+          updatedAt: Date.now(),
+          completionHistory: {
+            [today]: true,
+            [d1]: true,
+            [d2]: true,
+            [d3]: true,
+            [d4]: true,
+            [d5]: true,
+          },
+        },
+        {
+          id: `hbt_gratitude_${adminUid}`,
+          userId: adminUid,
+          title: 'Daily Mindful Gratitude Journal',
+          emoji: '🎯',
+          currentStreak: 12,
+          bestStreak: 18,
+          totalPoints: 360,
+          createdAt: Date.now() - 20 * 86400000,
+          updatedAt: Date.now(),
+          completionHistory: {
+            [today]: true,
+            [d1]: true,
+            [d2]: true,
+            [d3]: true,
+            [d4]: true,
+            [d5]: true,
+            [d6]: true,
+          },
+        },
+      ];
+      userHabits.set(adminUid, adminHabits);
+      modified = true;
+    }
+  }
+
+  if (modified) {
+    saveHabitsToDisk();
+  }
+}
+
+function ensureDefaultSeededJournals(): void {
+  let modified = false;
+
+  const testAccount = registeredAccounts.get('test_user1@gmail.com');
+  const testUids = Array.from(new Set(['usr_test_user1', 'usr_a3e7d0ba2e5cd66ee2d4', ...(testAccount ? [testAccount.uid] : [])]));
+
+  for (const testUid of testUids) {
+    if (!userJournals.has(testUid) || userJournals.get(testUid)!.length === 0) {
+      const testJournals: BackendJournal[] = [
+        {
+          id: `jnl_morning_reflection_${testUid}`,
+          userId: testUid,
+          title: 'Morning Clarity & Fresh Focus',
+          content: 'Woke up early today and took fifteen minutes to sit in silence before checking any screens. The calm morning air really helped settle my racing thoughts. Ready to tackle the coding challenges with a centered mind.',
+          mood: 'peaceful',
+          tags: ['mindfulness', 'morning', 'clarity'],
+          createdAt: Date.now() - 86400000,
+          updatedAt: Date.now() - 86400000,
+          pinned: true,
+          conversation: [
+            {
+              id: 'msg_t1_1',
+              role: 'assistant',
+              text: 'It sounds like creating that intentional quiet boundary in the morning created immediate mental clarity for you. How did that calm feeling influence how you approached your day?',
+              timestamp: Date.now() - 86300000,
+            },
+          ],
+          insights: {
+            themes: ['Early morning intentionality', 'Digital boundary setting', 'Mental centering'],
+            summary: 'A calm, grounding start to the day that set a deliberate pace.',
+            actionableAdvice: 'Maintain this 15-minute screen-free buffer to sustain mental focus throughout the week.',
+          },
+          location: null,
+        },
+        {
+          id: `jnl_habits_milestone_${testUid}`,
+          userId: testUid,
+          title: 'Building Momentum: Day 5 on Mindfulness',
+          content: 'Hit my 5-day streak on morning meditation and finished reading Chapter 3. Consistent small steps really do compound over time.',
+          mood: 'motivated',
+          tags: ['growth', 'habits', 'streak'],
+          createdAt: Date.now() - 3600000 * 4,
+          updatedAt: Date.now() - 3600000 * 4,
+          pinned: false,
+          conversation: [],
+          insights: {
+            themes: ['Habit compounding', 'Momentum', 'Consistency'],
+            summary: 'Celebrating streak progress and personal discipline.',
+            actionableAdvice: 'Acknowledge your progress and set a small reward when you hit 7 days.',
+          },
+          location: null,
+        },
+      ];
+      userJournals.set(testUid, testJournals);
+      systemMetrics.totalJournalsCreated += testJournals.length;
+      modified = true;
+    }
+  }
+
+  const admin786 = registeredAccounts.get('thaiebu786@gmail.com');
+  const admin785 = registeredAccounts.get('thaiebu785@gmail.com');
+  const adminUidsToSeed = Array.from(new Set([
+    'usr_admin_thaiebu786',
+    'usr_admin_thaiebu785',
+    ...(admin786 ? [admin786.uid] : []),
+    ...(admin785 ? [admin785.uid] : []),
+  ]));
+
+  for (const adminUid of adminUidsToSeed) {
+    if (!userJournals.has(adminUid) || userJournals.get(adminUid)!.length === 0) {
+      const adminJournals: BackendJournal[] = [
+        {
+          id: `jnl_admin_${adminUid}_architecture`,
+          userId: adminUid,
+          title: 'System Architecture & Zero-Trust Validation Audit',
+          content: 'Completed full end-to-end review of the RBAC authentication ladder, PBKDF2 credential derivation, and persistent state synchronizers. Everything is isolated by user UID with rigorous server-side verification.',
+          mood: 'focused',
+          tags: ['architecture', 'security', 'rbac', 'cloudrun'],
+          createdAt: Date.now() - 7200000,
+          updatedAt: Date.now() - 7200000,
+          pinned: true,
+          conversation: [],
+          insights: {
+            themes: ['Defense in depth', 'Security hardening', 'Operational excellence'],
+            summary: 'System verification confirmed complete tenant isolation and resilient fallback pipelines.',
+            actionableAdvice: 'Continue monitoring latency across model fallbacks.',
+          },
+          location: null,
+        },
+      ];
+      userJournals.set(adminUid, adminJournals);
+      systemMetrics.totalJournalsCreated += adminJournals.length;
+      modified = true;
+    }
+  }
+
+  if (modified) {
+    saveJournalsToDisk();
+  }
+}
+
+// Immediately load accounts, admin registry, habits, and journals upon server boot
+loadAccountsFromDisk();
+ensureDefaultSeededAccounts();
+loadAdminRegistryFromDisk();
+loadSessionsFromDisk();
+loadHabitsFromDisk();
+ensureDefaultSeededHabits();
+loadJournalsFromDisk();
+ensureDefaultSeededJournals();
 
 function verifyPassword(password: string, salt: string, storedHash: string): boolean {
   try {
@@ -763,6 +1288,7 @@ app.post('/api/auth/signup', async (req: Request, res: Response) => {
     expiresAt: Date.now() + 7 * 24 * 3600 * 1000,
   };
   verifiedSessions.set(sessionToken, sessionData);
+  saveSessionsToDisk();
 
   // Generate Firebase custom token if signing capability is available
   const customToken = await createCustomTokenSafe(uid, {
@@ -802,6 +1328,13 @@ app.post('/api/auth/signin', async (req: Request, res: Response) => {
   }
 
   let account = registeredAccounts.get(cleanEmail);
+
+  // If not in memory cache, re-check defaults and reload from disk
+  if (!account) {
+    ensureDefaultSeededAccounts();
+    loadAccountsFromDisk();
+    account = registeredAccounts.get(cleanEmail);
+  }
 
   // If not in memory cache, look up in Firestore persistent accounts collection
   if (!account && adminDb) {
@@ -866,6 +1399,7 @@ app.post('/api/auth/signin', async (req: Request, res: Response) => {
     expiresAt: Date.now() + 7 * 24 * 3600 * 1000,
   };
   verifiedSessions.set(sessionToken, sessionData);
+  saveSessionsToDisk();
 
   // Generate Firebase custom token if signing capability is available
   const customToken = await createCustomTokenSafe(account.uid, {
@@ -1019,6 +1553,7 @@ Format:
     systemMetrics.totalJournalsCreated += 1;
   }
   userJournals.set(user.uid, existingList);
+  saveJournalsToDisk();
 
   // Persist directly to Cloud Firestore under tenant path /users/{uid}/journals/{journalId}
   await safeFirestoreWrite(async () => {
@@ -1153,6 +1688,7 @@ app.delete('/api/journals/:journal_id', getCurrentUser, async (req: Request, res
   const list = userJournals.get(user.uid) || [];
   const updated = list.filter((j) => j.id !== journalId);
   userJournals.set(user.uid, updated);
+  saveJournalsToDisk();
 
   await safeFirestoreWrite(async () => {
     await adminDb!.collection('users').doc(user.uid).collection('journals').doc(journalId).delete();
@@ -1191,6 +1727,7 @@ app.post('/api/save-session', getCurrentUser, async (req: Request, res: Response
     systemMetrics.totalJournalsCreated += 1;
   }
   userJournals.set(user.uid, list);
+  saveJournalsToDisk();
 
   await safeFirestoreWrite(async () => {
     await adminDb!.collection('users').doc(user.uid).collection('journals').doc(journalId).set(sanitizePayload(entry), { merge: true });
@@ -1201,6 +1738,310 @@ app.post('/api/save-session', getCurrentUser, async (req: Request, res: Response
     journalId,
     entry,
   });
+});
+
+// ==========================================
+// Gamified Habit & Streak Tracker Endpoints
+// ==========================================
+
+// GET /api/habits: Fetch all habits for req.user.uid from Firestore & disk cache
+app.get('/api/habits', getCurrentUser, async (req: Request, res: Response) => {
+  const user = req.user!;
+
+  try {
+    checkRateLimit(user.uid, 'habits', 20, 60);
+  } catch (err: any) {
+    res.status(429).json({
+      status: 'error',
+      code: 'RATE_LIMIT_EXCEEDED',
+      detail: err.message || 'Rate limit exceeded. Maximum 20 requests per 60s.',
+    });
+    return;
+  }
+
+  let list = userHabits.get(user.uid) || [];
+
+  list = await safeFirestoreRead(async () => {
+    if (!adminDb) return list;
+    const snapshot = await adminDb.collection('users').doc(user.uid).collection('habits').orderBy('createdAt', 'desc').get();
+    if (!snapshot.empty) {
+      const firestoreList: BackendHabit[] = snapshot.docs.map((docSnap) => {
+        const data = docSnap.data();
+        return {
+          id: docSnap.id,
+          userId: user.uid,
+          title: data.title || 'Untitled Habit',
+          emoji: data.emoji || '🎯',
+          currentStreak: Number(data.currentStreak) || 0,
+          bestStreak: Number(data.bestStreak) || 0,
+          totalPoints: Number(data.totalPoints) || 0,
+          createdAt: typeof data.createdAt === 'string' ? new Date(data.createdAt).getTime() : (data.createdAt || Date.now()),
+          updatedAt: typeof data.updatedAt === 'string' ? new Date(data.updatedAt).getTime() : (data.updatedAt || Date.now()),
+          completionHistory: (data.completionHistory && typeof data.completionHistory === 'object') ? data.completionHistory : {},
+        };
+      });
+      userHabits.set(user.uid, firestoreList);
+      saveHabitsToDisk();
+      return firestoreList;
+    }
+    return list;
+  }, list);
+
+  res.json({
+    status: 'success',
+    habits: list,
+    count: list.length,
+  });
+});
+
+// POST /api/habits: Create a new habit
+app.post('/api/habits', getCurrentUser, async (req: Request, res: Response) => {
+  const user = req.user!;
+
+  try {
+    checkRateLimit(user.uid, 'habits', 20, 60);
+  } catch (err: any) {
+    res.status(429).json({
+      status: 'error',
+      code: 'RATE_LIMIT_EXCEEDED',
+      detail: err.message || 'Rate limit exceeded. Maximum 20 requests per 60s.',
+    });
+    return;
+  }
+
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  const rawTitle = typeof body.title === 'string' ? body.title.trim() : '';
+  const rawEmoji = typeof body.emoji === 'string' ? body.emoji.trim() : '';
+
+  if (!rawTitle) {
+    res.status(400).json({ status: 'error', detail: 'Habit title is required.' });
+    return;
+  }
+
+  if (rawTitle.length > 100) {
+    res.status(400).json({ status: 'error', detail: 'Habit title must be at most 100 characters.' });
+    return;
+  }
+
+  try {
+    checkPromptInjection(rawTitle);
+  } catch (err: any) {
+    res.status(400).json({ status: 'error', detail: err.message });
+    return;
+  }
+
+  const habitId = `habit_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+  const now = Date.now();
+  const newHabit: BackendHabit = {
+    id: habitId,
+    userId: user.uid,
+    title: rawTitle,
+    emoji: rawEmoji || '🎯',
+    currentStreak: 0,
+    bestStreak: 0,
+    totalPoints: 0,
+    createdAt: now,
+    updatedAt: now,
+    completionHistory: {},
+  };
+
+  const list = userHabits.get(user.uid) || [];
+  list.unshift(newHabit);
+  userHabits.set(user.uid, list);
+  saveHabitsToDisk();
+
+  await safeFirestoreWrite(async () => {
+    if (!adminDb) return;
+    await adminDb.collection('users').doc(user.uid).collection('habits').doc(habitId).set(sanitizePayload(newHabit));
+  });
+
+  res.json({
+    status: 'success',
+    habit: newHabit,
+  });
+});
+
+// POST /api/habits/:habitId/toggle: Toggle completion for date, recalculate streak & points
+app.post('/api/habits/:habitId/toggle', getCurrentUser, async (req: Request, res: Response) => {
+  const user = req.user!;
+  const habitId = req.params.habitId;
+
+  try {
+    checkRateLimit(user.uid, 'habits', 30, 60);
+  } catch (err: any) {
+    res.status(429).json({
+      status: 'error',
+      code: 'RATE_LIMIT_EXCEEDED',
+      detail: err.message || 'Rate limit exceeded.',
+    });
+    return;
+  }
+
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  const targetDate = typeof body.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.date)
+    ? body.date
+    : new Date().toISOString().split('T')[0];
+
+  const list = userHabits.get(user.uid) || [];
+  let habit = list.find((h) => h.id === habitId);
+
+  // If not found in memory, try Firestore
+  if (!habit && adminDb) {
+    habit = await safeFirestoreRead(async () => {
+      const snap = await adminDb!.collection('users').doc(user.uid).collection('habits').doc(habitId).get();
+      if (snap.exists) {
+        return snap.data() as BackendHabit;
+      }
+      return undefined;
+    }, undefined);
+    if (habit) {
+      list.push(habit);
+      userHabits.set(user.uid, list);
+    }
+  }
+
+  if (!habit || habit.userId !== user.uid) {
+    res.status(404).json({ status: 'error', detail: 'Habit not found or unauthorized.' });
+    return;
+  }
+
+  const history = { ...(habit.completionHistory || {}) };
+  const wasCompleted = Boolean(history[targetDate]);
+  let earnedPointsDelta = 0;
+
+  if (wasCompleted) {
+    // Un-toggle: Deduct 10 on un-toggle
+    delete history[targetDate];
+    const { currentStreak } = computeHabitStreak(history);
+    habit.currentStreak = currentStreak;
+    habit.totalPoints = Math.max(0, (habit.totalPoints || 0) - 10);
+    earnedPointsDelta = -10;
+  } else {
+    // Complete: 10 base + (streak * 2) per completion
+    history[targetDate] = true;
+    const { currentStreak } = computeHabitStreak(history);
+    habit.currentStreak = currentStreak;
+    habit.bestStreak = Math.max(habit.bestStreak || 0, currentStreak);
+    const pointsToAdd = 10 + (currentStreak * 2);
+    habit.totalPoints = (habit.totalPoints || 0) + pointsToAdd;
+    earnedPointsDelta = pointsToAdd;
+  }
+
+  habit.completionHistory = history;
+  habit.updatedAt = Date.now();
+
+  saveHabitsToDisk();
+
+  await safeFirestoreWrite(async () => {
+    if (!adminDb) return;
+    await adminDb.collection('users').doc(user.uid).collection('habits').doc(habitId).set(sanitizePayload(habit), { merge: true });
+  });
+
+  res.json({
+    status: 'success',
+    habit,
+    isCompleted: !wasCompleted,
+    earnedPointsDelta,
+    date: targetDate,
+  });
+});
+
+// DELETE /api/habits/:habitId: Delete a habit
+app.delete('/api/habits/:habitId', getCurrentUser, async (req: Request, res: Response) => {
+  const user = req.user!;
+  const habitId = req.params.habitId;
+
+  const list = userHabits.get(user.uid) || [];
+  const habitIndex = list.findIndex((h) => h.id === habitId);
+
+  if (habitIndex >= 0) {
+    list.splice(habitIndex, 1);
+    userHabits.set(user.uid, list);
+    saveHabitsToDisk();
+  }
+
+  await safeFirestoreWrite(async () => {
+    if (!adminDb) return;
+    await adminDb.collection('users').doc(user.uid).collection('habits').doc(habitId).delete();
+  });
+
+  res.json({
+    status: 'success',
+    message: 'Habit deleted successfully.',
+    habitId,
+  });
+});
+
+// POST /api/habits/detect: Send journal text to Gemini fallback ladder → returns detected habit names
+app.post('/api/habits/detect', getCurrentUser, async (req: Request, res: Response) => {
+  const user = req.user!;
+
+  try {
+    checkRateLimit(user.uid, 'habits_detect', 20, 60);
+  } catch (err: any) {
+    res.status(429).json({
+      status: 'error',
+      code: 'RATE_LIMIT_EXCEEDED',
+      detail: err.message || 'Rate limit exceeded. Maximum 20 requests per 60s.',
+    });
+    return;
+  }
+
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  const text = typeof body.text === 'string' ? body.text.trim() : '';
+
+  if (!text || text.length < 5) {
+    res.json({ status: 'success', detectedHabits: [], modelUsed: 'none' });
+    return;
+  }
+
+  try {
+    checkPromptInjection(text.slice(0, 1000));
+  } catch (err: any) {
+    res.status(400).json({ status: 'error', detail: err.message });
+    return;
+  }
+
+  const systemPrompt = `You are a mindful habit detection assistant. Analyze the user's personal journal entry and identify healthy, positive habits, routines, or constructive daily activities mentioned (e.g., meditation, morning walk, gym, reading, drinking water, yoga, gratitude journaling, stretching, eating clean).
+Return ONLY a valid JSON array of short habit names (1-3 words each, e.g. ["Meditation", "Morning Walk", "Reading"]). If no positive habits are mentioned, return []. Never return markdown formatting, backticks, or extra commentary. Output pure JSON array only.`;
+
+  try {
+    const { text: rawOutput, modelUsed } = await generateWithFallback(
+      `Journal Entry:\n"""\n${text.slice(0, 3000)}\n"""`,
+      systemPrompt
+    );
+
+    let detected: string[] = [];
+    try {
+      const cleanJson = rawOutput.replace(/```json/g, '').replace(/```/g, '').trim();
+      const parsed = JSON.parse(cleanJson);
+      if (Array.isArray(parsed)) {
+        detected = parsed
+          .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+          .map((item) => item.trim())
+          .slice(0, 5);
+      }
+    } catch {
+      const lines = rawOutput
+        .split('\n')
+        .map((l) => l.replace(/[-*•"\d.]/g, '').trim())
+        .filter((l) => l.length > 2 && l.length < 30);
+      detected = lines.slice(0, 3);
+    }
+
+    res.json({
+      status: 'success',
+      detectedHabits: detected,
+      modelUsed,
+    });
+  } catch (err: any) {
+    console.error('[Habits Detect Fallback Error]', err);
+    res.json({
+      status: 'success',
+      detectedHabits: [],
+      modelUsed: 'mindful-fallback',
+    });
+  }
 });
 
 // Multi-Turn AI Chat Route

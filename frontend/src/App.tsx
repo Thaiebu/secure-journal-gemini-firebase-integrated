@@ -12,9 +12,11 @@ import { AuthLanding } from './components/AuthLanding';
 import { JournalEditor } from './components/JournalEditor';
 import { JournalHistory } from './components/JournalHistory';
 import { JournalMapView } from './components/JournalMapView';
+import { HabitTracker } from './components/HabitTracker';
 import { AdminDashboard } from './components/AdminDashboard';
 import { SecurityModal } from './components/SecurityModal';
 import { subscribeUserJournals, persistJournalEntry, removeJournalEntry, persistInteractionLog } from './services/journalService';
+import { detectHabitsInJournal } from './services/habitService';
 import { getAuthHeaders } from './services/authService';
 import { fetchCurrentUserRole } from './services/adminService';
 import { getFriendlyAuthErrorMessage } from './lib/utils';
@@ -41,9 +43,10 @@ export default function App() {
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'editor' | 'history' | 'map' | 'admin'>('editor');
+  const [activeTab, setActiveTab] = useState<'editor' | 'history' | 'habits' | 'map' | 'admin'>('editor');
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [currentEntry, setCurrentEntry] = useState<JournalEntry | null>(null);
+  const [detectedHabits, setDetectedHabits] = useState<string[]>([]);
 
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -76,7 +79,39 @@ export default function App() {
         };
         setUser(userProfile);
         setCurrentEntry(createNewEntry(firebaseUser.uid));
+        localStorage.setItem('mindreflect_user_profile', JSON.stringify(userProfile));
       } else {
+        // Fallback check: Verify if an authenticated server session exists in localStorage
+        const storedProfileStr = localStorage.getItem('mindreflect_user_profile');
+        const storedToken = localStorage.getItem('mindreflect_auth_token');
+        if (storedProfileStr && storedToken) {
+          try {
+            const parsed = JSON.parse(storedProfileStr);
+            if (parsed && parsed.uid) {
+              setUser(parsed);
+              setCurrentEntry(createNewEntry(parsed.uid));
+
+              // Verify session in background with server
+              fetchCurrentUserRole().then((serverUser) => {
+                if (serverUser) {
+                  setUser((prev) => (prev ? { ...prev, ...serverUser } : prev));
+                } else {
+                  localStorage.removeItem('mindreflect_user_profile');
+                  localStorage.removeItem('mindreflect_auth_token');
+                  setUser(null);
+                  setCurrentEntry(null);
+                  setEntries([]);
+                }
+              }).catch(() => {
+                // Keep local session if temporarily offline
+              });
+              setIsAuthLoading(false);
+              return;
+            }
+          } catch {
+            localStorage.removeItem('mindreflect_user_profile');
+          }
+        }
         setUser(null);
         setCurrentEntry(null);
         setEntries([]);
@@ -420,6 +455,15 @@ export default function App() {
       setCurrentEntry(updatedEntry);
       if (user?.uid) {
         await handleSaveEntry(updatedEntry);
+
+        // Detect habits mentioned in this journal reflection
+        detectHabitsInJournal(currentEntry.content)
+          .then((detected) => {
+            if (Array.isArray(detected) && detected.length > 0) {
+              setDetectedHabits((prev) => Array.from(new Set([...prev, ...detected])));
+            }
+          })
+          .catch((e) => console.warn('[Habit Detection in Journal]', e));
       }
     } catch (err: any) {
       if (err?.name === 'AbortError' || err?.message?.includes('aborted')) {
@@ -515,6 +559,14 @@ export default function App() {
               isGeneratingChat={isGeneratingChat}
               reflectionMode={reflectionMode}
               onSelectMode={setReflectionMode}
+            />
+          ) : activeTab === 'habits' ? (
+            <HabitTracker
+              user={user}
+              detectedHabits={detectedHabits}
+              onDismissDetectedHabit={(hName) =>
+                setDetectedHabits((prev) => prev.filter((item) => item !== hName))
+              }
             />
           ) : activeTab === 'map' ? (
             <JournalMapView

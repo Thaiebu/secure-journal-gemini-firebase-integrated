@@ -1,12 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { UserProfile } from '../types';
-import { BookOpen, Sparkles, History, LogOut, ShieldCheck, User, Compass, ChevronDown, Check } from 'lucide-react';
+import { BookOpen, Sparkles, History, Flame, LogOut, ShieldCheck, User, Compass, ChevronDown, Check } from 'lucide-react';
 import { ThemeToggle } from './ThemeToggle';
 
 interface NavbarProps {
   user: UserProfile | null;
-  activeTab: 'editor' | 'history' | 'map' | 'admin';
-  onSelectTab: (tab: 'editor' | 'history' | 'map' | 'admin') => void;
+  activeTab: 'editor' | 'history' | 'habits' | 'map' | 'admin';
+  onSelectTab: (tab: 'editor' | 'history' | 'habits' | 'map' | 'admin') => void;
   onSignOut: () => void;
   onOpenSecurityModal: () => void;
   entriesCount: number;
@@ -47,7 +47,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     };
   }, [isMobileMenuOpen]);
 
-  const handleSelectMobileTab = (tab: 'editor' | 'history' | 'map' | 'admin') => {
+  const handleSelectMobileTab = (tab: 'editor' | 'history' | 'habits' | 'map' | 'admin') => {
     onSelectTab(tab);
     setIsMobileMenuOpen(false);
   };
@@ -123,6 +123,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <div className="w-5 h-5 rounded-md flex items-center justify-center bg-amber-500/15 text-amber-600 dark:text-amber-400 shrink-0">
                   {activeTab === 'editor' && <Sparkles className="w-3 h-3" />}
                   {activeTab === 'history' && <History className="w-3 h-3" />}
+                  {activeTab === 'habits' && <Flame className="w-3 h-3" />}
                   {activeTab === 'map' && <Compass className="w-3 h-3" />}
                   {activeTab === 'admin' && <ShieldCheck className="w-3 h-3" />}
                 </div>
@@ -131,6 +132,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <span className="truncate font-semibold text-xs text-left max-w-[65px] sm:max-w-[100px]">
                   {activeTab === 'editor' && 'Studio'}
                   {activeTab === 'history' && (entriesCount > 0 ? `History (${entriesCount})` : 'History')}
+                  {activeTab === 'habits' && 'Habits'}
                   {activeTab === 'map' && (locationsCount > 0 ? `Map (${locationsCount})` : 'Map')}
                   {activeTab === 'admin' && 'Admin'}
                 </span>
@@ -248,7 +250,41 @@ export const Navbar: React.FC<NavbarProps> = ({
                     {activeTab === 'history' && <Check className="w-4 h-4 text-amber-500 shrink-0 ml-1" />}
                   </button>
 
-                  {/* 3. Places Map */}
+                  {/* 3. Habits & Streaks */}
+                  <button
+                    id="mobile-nav-tab-habits"
+                    type="button"
+                    onClick={() => handleSelectMobileTab('habits')}
+                    className="w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-xs transition-all cursor-pointer text-left mt-0.5 group"
+                    style={{
+                      backgroundColor: activeTab === 'habits' ? 'var(--color-accent-subtle)' : 'transparent',
+                      color: activeTab === 'habits' ? 'var(--color-text)' : 'var(--color-text-muted)',
+                    }}
+                    role="menuitem"
+                  >
+                    <div className="flex items-center space-x-2.5 min-w-0">
+                      <div
+                        className="w-7 h-7 rounded-lg border flex items-center justify-center shrink-0 transition-transform group-hover:scale-105"
+                        style={{
+                          backgroundColor: activeTab === 'habits' ? 'var(--color-surface)' : 'transparent',
+                          borderColor: 'var(--color-border)',
+                        }}
+                      >
+                        <Flame className={`w-3.5 h-3.5 ${activeTab === 'habits' ? 'text-amber-500' : 'opacity-70'}`} />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-semibold text-xs truncate" style={{ color: 'var(--color-text)' }}>
+                          Habits &amp; Streaks
+                        </div>
+                        <div className="text-[10px] truncate" style={{ color: 'var(--color-text-muted)' }}>
+                          Daily mindfulness &amp; routines
+                        </div>
+                      </div>
+                    </div>
+                    {activeTab === 'habits' && <Check className="w-4 h-4 text-amber-500 shrink-0 ml-1" />}
+                  </button>
+
+                  {/* 4. Places Map */}
                   <button
                     id="mobile-nav-tab-map"
                     type="button"
@@ -421,6 +457,25 @@ export const Navbar: React.FC<NavbarProps> = ({
                     {entriesCount}
                   </span>
                 )}
+              </button>
+
+              <button
+                id="nav-tab-habits"
+                onClick={() => onSelectTab('habits')}
+                className="group flex items-center space-x-1.5 px-2.5 py-1 sm:py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer shrink-0 whitespace-nowrap"
+                style={{
+                  backgroundColor: activeTab === 'habits' ? 'var(--color-surface-elevated)' : 'transparent',
+                  color: activeTab === 'habits' ? 'var(--color-text)' : 'var(--color-text-muted)',
+                  boxShadow: activeTab === 'habits' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none',
+                }}
+                title="Habit & Streak Tracker"
+              >
+                <Flame
+                  className={`w-3.5 h-3.5 shrink-0 transition-colors ${
+                    activeTab === 'habits' ? 'text-amber-500 dark:text-amber-400 fill-amber-500/20' : 'text-current opacity-70 group-hover:opacity-100'
+                  }`}
+                />
+                <span>Habits</span>
               </button>
 
               <button

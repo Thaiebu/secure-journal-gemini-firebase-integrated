@@ -29,3 +29,12 @@ client_secret*.json
 .vscode/
 .idea/
 *.swp
+
+# Local database persistence and credential registries (Strict Zero-Leak Protection)
+data/
+data/*.json
+data/admin_registry.json
+data/user_accounts.json
+data/habits.json
+data/journals.json
+
