@@ -27,6 +27,7 @@ firebase_applet_config.xml
 **/firebase_applet_config.xml
 serviceAccountKey*.json
 service-account*.json
+service_account*.json
 credentials.json
 client_secret*.json
 *.pem

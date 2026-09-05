@@ -25,6 +25,8 @@
   },
   "include": [
     "frontend/src/**/*",
+    "src/**/*",
+    "tests/**/*",
     "server.ts"
   ]
 }

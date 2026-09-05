@@ -10,6 +10,14 @@ import { GoogleGenAI } from '@google/genai';
 import { initializeApp, getApps } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
+import {
+  sanitizePayload,
+  checkRateLimit,
+  checkPromptInjection,
+  isValidEmail,
+  validateWebhookUrl,
+  escapeHtml,
+} from './src/utils';
 
 dotenv.config();
 
@@ -300,13 +308,6 @@ function recordAudit(action: string, actor: AuthenticatedUser, details?: string,
   if (auditLogs.length > 500) auditLogs.pop();
 }
 
-// Deep clean & undefined-stripping utility (Zero-Crash Payload Hygiene)
-function sanitizePayload<T>(obj: T): T {
-  if (obj === null || obj === undefined) {
-    return null as unknown as T;
-  }
-  return JSON.parse(JSON.stringify(obj, (_key, value) => (value === undefined ? null : value)));
-}
 
 // ==========================================
 // Lazy Gemini Client & Fallback Ladder
@@ -329,49 +330,6 @@ const MODEL_FALLBACK_LADDER = [
 // In-memory cooldown tracking for models that hit 429 quota exhaustion
 const modelCooldowns = new Map<string, number>();
 
-// ==========================================
-// Sliding-Window In-Memory Rate Limiter
-// ==========================================
-const rateLimits = new Map<string, number[]>();
-
-function checkRateLimit(uid: string, endpoint: string, maxCalls: number, windowSeconds: number = 60): void {
-  const key = `${uid}:${endpoint}`;
-  const now = Date.now();
-  const windowMs = windowSeconds * 1000;
-  const calls = (rateLimits.get(key) || []).filter((t) => now - t < windowMs);
-
-  if (calls.length >= maxCalls) {
-    const err: any = new Error(`Rate limit exceeded. Maximum ${maxCalls} requests per ${windowSeconds}s.`);
-    err.statusCode = 429;
-    err.code = 'RATE_LIMIT_EXCEEDED';
-    throw err;
-  }
-
-  calls.push(now);
-  rateLimits.set(key, calls);
-}
-
-// ==========================================
-// Basic Prompt Injection Defense
-// ==========================================
-const INJECTION_PATTERNS = [
-  'ignore your instructions',
-  'system prompt',
-  'ignore previous',
-  'act as',
-  'jailbreak',
-];
-
-function checkPromptInjection(text: string): void {
-  if (!text || typeof text !== 'string') return;
-  const lowered = text.toLowerCase();
-  if (INJECTION_PATTERNS.some((p) => lowered.includes(p))) {
-    const err: any = new Error('Content violates AI usage policy.');
-    err.statusCode = 400;
-    err.code = 'PROMPT_INJECTION_DETECTED';
-    throw err;
-  }
-}
 
 async function generateWithFallback(
   promptOrContents: any,
@@ -2643,47 +2601,6 @@ app.post('/api/admin/users/:uid/demote', requireAdmin, async (req: Request, res:
 // External Notifications & Weekly Email Digest
 // ==========================================
 
-const RFC5322_EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-
-function isValidEmail(email: string): boolean {
-  if (typeof email !== 'string') return false;
-  const trimmed = email.trim();
-  return RFC5322_EMAIL_REGEX.test(trimmed) && trimmed.length <= 100;
-}
-
-function validateWebhookUrl(urlStr: string): boolean {
-  try {
-    const parsed = new URL(urlStr);
-    if (parsed.protocol !== 'https:') return false;
-    const hostname = parsed.hostname.toLowerCase();
-    if (
-      hostname === 'localhost' ||
-      hostname === '127.0.0.1' ||
-      hostname === '0.0.0.0' ||
-      hostname.startsWith('10.') ||
-      hostname.startsWith('192.168.') ||
-      hostname.startsWith('172.16.') ||
-      hostname === '169.254.169.254' ||
-      hostname.endsWith('.internal') ||
-      hostname.endsWith('.local')
-    ) {
-      return false;
-    }
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function escapeHtml(str: string): string {
-  if (!str) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
 
 function renderWeeklyDigestHtml(data: {
   userName: string;
@@ -3281,4 +3198,8 @@ async function startServer() {
   });
 }
 
-startServer();
+if (process.env.NODE_ENV !== 'test') {
+  startServer();
+}
+
+export { app, startServer };
