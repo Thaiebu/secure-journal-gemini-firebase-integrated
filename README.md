@@ -220,19 +220,29 @@ MindReflect is engineered in alignment with OWASP Top 10 (Web) and OWASP Top 10 
 
 ## 🔒 Secret Management Setup
 
-Follow these steps to configure production secrets securely in Google Cloud Secret Manager:
+To adhere to the zero-hardcoding security standard, never embed API keys into environment variables, Dockerfiles, or code. Store your Gemini API key in **Google Cloud Secret Manager**:
 
 ```bash
 # 1. Enable required Google Cloud APIs
-gcloud services enable run.googleapis.com secretmanager.googleapis.com firestore.googleapis.com
+gcloud services enable \
+  run.googleapis.com \
+  secretmanager.googleapis.com \
+  firestore.googleapis.com \
+  cloudbuild.googleapis.com \
+  artifactregistry.googleapis.com
 
-# 2. Create and populate the secret in Google Cloud Secret Manager
+# 2. Create the secret in Google Cloud Secret Manager
 gcloud secrets create GEMINI_API_KEY --replication-policy="automatic"
+
+# 3. Add your Gemini API Key as a secret version
 echo -n "YOUR_GEMINI_API_KEY" | gcloud secrets versions add GEMINI_API_KEY --data-file=-
 
-# 3. Grant the Cloud Run default compute service account access to read the secret
+# 4. Resolve your Google Cloud Project Number automatically
+PROJECT_NUMBER=$(gcloud projects describe $(gcloud config get-value project) --format="value(projectNumber)")
+
+# 5. Grant the Cloud Run compute service account access to read the secret
 gcloud secrets add-iam-policy-binding GEMINI_API_KEY \
-  --member="serviceAccount:YOUR_PROJECT_NUMBER-compute@developer.gserviceaccount.com" \
+  --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
   --role="roles/secretmanager.secretAccessor"
 ```
 
@@ -240,23 +250,59 @@ gcloud secrets add-iam-policy-binding GEMINI_API_KEY \
 
 ## 🚀 Google Cloud Run Production Deployment
 
-Deploy MindReflect to Google Cloud Run with Secret Manager environment bindings and the required campaign verification label:
+Deploy MindReflect to Google Cloud Run with source compilation, port 3000 mapping, Secret Manager runtime bindings, and the required campaign verification labels:
+
+### 1. Direct Source Deploy via Cloud Buildpacks
+
+Run this command directly from the root of the project:
 
 ```bash
-# 1. Deploy service to Google Cloud Run
 gcloud run deploy mindreflect-app \
   --source . \
   --platform managed \
   --region asia-southeast1 \
   --allow-unauthenticated \
+  --port 3000 \
   --set-secrets GEMINI_API_KEY=GEMINI_API_KEY:latest \
-  --set-env-vars FIREBASE_PROJECT_ID=YOUR_PROJECT_ID,FIRESTORE_DATABASE_ID=YOUR_DATABASE_ID \
+  --set-env-vars NODE_ENV=production \
   --update-labels=dev-tutorial=cloud-run-ai-challenge
+```
 
-# 2. Update service labels for campaign challenge verification
+### 2. Campaign Verification Labeling
+
+Ensure the campaign verification label is applied:
+
+```bash
 gcloud run services update mindreflect-app \
   --update-labels=dev-tutorial=cloud-run-ai-challenge \
   --region=asia-southeast1
+```
+
+### 3. Deploy Firestore Security Rules
+
+Deploy the owner-bound security rules to ensure user data isolation:
+
+```bash
+# Deploy firestore.rules via Firebase CLI
+firebase deploy --only firestore:rules
+
+# Or verify the rules in firestore.rules and publish them in Firebase Console -> Firestore -> Rules
+```
+
+### 4. Post-Deployment Verification Health Check
+
+Verify your deployed service using curl:
+
+```bash
+# Replace with your deployed Cloud Run URL
+curl -i https://YOUR_DEPLOYED_SERVICE_URL/api/health
+```
+
+Expected response:
+```json
+HTTP/1.1 200 OK
+Content-Type: application/json
+{"status":"ok","rbac":"active"}
 ```
 
 ---
