@@ -284,19 +284,36 @@ export default function App() {
     try {
       // Call Server-Side Gemini API Proxy with Fallback Ladder & Zero-Trust Auth
       const headers = await getAuthHeaders(user);
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers,
-        signal: controller.signal,
-        body: JSON.stringify({
-          messages: updatedConversation.map((m) => ({
-            role: m.role,
-            content: m.content,
-          })),
-          mode,
-          journalContext: updatedEntry.content,
-        }),
+      const chatPayload = JSON.stringify({
+        messages: updatedConversation.map((m) => ({
+          role: m.role,
+          content: m.content,
+        })),
+        mode,
+        journalContext: updatedEntry.content,
       });
+
+      let response: Response;
+      try {
+        response = await fetch('/api/chat', {
+          method: 'POST',
+          headers,
+          signal: controller.signal,
+          body: chatPayload,
+        });
+      } catch (fetchErr: any) {
+        if (fetchErr?.name === 'AbortError' || fetchErr?.message?.includes('aborted')) {
+          throw fetchErr;
+        }
+        console.warn('[Chat] Fetch encountered transient network notice; retrying once in 600ms...', fetchErr);
+        await new Promise((resolve) => setTimeout(resolve, 600));
+        response = await fetch('/api/chat', {
+          method: 'POST',
+          headers,
+          signal: controller.signal,
+          body: chatPayload,
+        });
+      }
 
       if (!response.ok) {
         const errJson = await response.json().catch(() => ({}));

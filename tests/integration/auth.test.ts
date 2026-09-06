@@ -69,4 +69,62 @@ describe('Auth & Session Integration Tests', () => {
     expect([400, 401]).toContain(res.status);
     expect(res.body.status).toBe('error');
   });
+
+  it('AUTH-08: POST /api/auth/signin succeeds with valid credentials', async () => {
+    const res = await request(app)
+      .post('/api/auth/signin')
+      .send({
+        email: testUserEmail,
+        password: testUserPassword,
+      });
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('success');
+    expect(res.body.sessionToken).toBeDefined();
+    expect(res.body.email).toBe(testUserEmail);
+  });
+
+  it('AUTH-09: POST /api/auth/reset-password updates credentials and signs in', async () => {
+    const updatedPassword = 'NewSecurePassword456!';
+    const resetRes = await request(app)
+      .post('/api/auth/reset-password')
+      .send({
+        email: testUserEmail,
+        newPassword: updatedPassword,
+      });
+    expect(resetRes.status).toBe(200);
+    expect(resetRes.body.status).toBe('success');
+    expect(resetRes.body.sessionToken).toBeDefined();
+
+    // Verify sign in with the new password works immediately
+    const signinRes = await request(app)
+      .post('/api/auth/signin')
+      .send({
+        email: testUserEmail,
+        password: updatedPassword,
+      });
+    expect(signinRes.status).toBe(200);
+    expect(signinRes.body.status).toBe('success');
+  });
+
+  it('AUTH-10: POST /api/auth/signup permits claiming seeded accounts', async () => {
+    const seededClaimRes = await request(app)
+      .post('/api/auth/signup')
+      .send({
+        email: 'thaiebu785@gmail.com',
+        password: 'MyChosenPassword785!',
+        name: 'Thaiebu Custom',
+      });
+    expect([200, 201]).toContain(seededClaimRes.status);
+    expect(seededClaimRes.body.sessionToken).toBeDefined();
+
+    // Verify newly claimed password works for sign in
+    const verifyLogin = await request(app)
+      .post('/api/auth/signin')
+      .send({
+        email: 'thaiebu785@gmail.com',
+        password: 'MyChosenPassword785!',
+      });
+    expect(verifyLogin.status).toBe(200);
+    expect(verifyLogin.body.status).toBe('success');
+  });
 });

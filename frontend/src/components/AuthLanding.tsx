@@ -48,12 +48,15 @@ export const AuthLanding: React.FC<AuthLandingProps> = ({
   const [successNotice, setSuccessNotice] = useState<string | null>(null);
   const [isResetMode, setIsResetMode] = useState(false);
   const [resetEmailSent, setResetEmailSent] = useState(false);
+  const [resetPasswordVal, setResetPasswordVal] = useState('');
+  const [showResetPassword, setShowResetPassword] = useState(false);
 
   const handleTabChange = (newTab: AuthTab) => {
     setTab(newTab);
     setLocalError(null);
     setSuccessNotice(null);
     setIsResetMode(false);
+    setResetPasswordVal('');
     if (onClearError) onClearError();
   };
 
@@ -133,22 +136,34 @@ export const AuthLanding: React.FC<AuthLandingProps> = ({
 
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail || !cleanEmail.includes('@')) {
-      setLocalError('Please provide your email to receive password reset instructions.');
+      setLocalError('Please provide your email address to reset your password.');
+      return;
+    }
+
+    if (!resetPasswordVal || resetPasswordVal.length < 6) {
+      setLocalError('New password must be at least 6 characters long.');
       return;
     }
 
     try {
       setIsSubmitting(true);
-      const res = await resetPassword(cleanEmail);
-      if (res.success) {
+      const res = await resetPassword(cleanEmail, resetPasswordVal);
+      if (res.success && res.user) {
+        setSuccessNotice('Password successfully updated! Signing you in...');
+        setTimeout(() => {
+          onVerifiedAccess(res.user!);
+        }, 500);
+      } else if (res.success) {
         setResetEmailSent(true);
-        setSuccessNotice(`Password reset instructions sent to ${cleanEmail}.`);
+        setSuccessNotice(`Password updated successfully for ${cleanEmail}. You can now sign in.`);
+        setIsResetMode(false);
+        setTab('signin');
       } else {
-        setLocalError(res.error || 'Failed to send reset instructions.');
+        setLocalError(res.error || 'Failed to update password.');
       }
     } catch (err: any) {
       console.error('[Reset Fallback Error]', err);
-      setLocalError(err.message || 'Failed to send password reset email.');
+      setLocalError(err.message || 'Failed to update password.');
     } finally {
       setIsSubmitting(false);
     }
@@ -238,7 +253,7 @@ export const AuthLanding: React.FC<AuthLandingProps> = ({
             <div className="mb-6 flex items-center justify-between border-b pb-4" style={{ borderColor: 'var(--color-border)' }}>
               <div>
                 <h2 className="text-base font-bold" style={{ color: 'var(--color-text)' }}>Reset Password</h2>
-                <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>We will send reset instructions to your email</p>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>Choose a new password to sign in to your account</p>
               </div>
               <button
                 type="button"
@@ -319,14 +334,39 @@ export const AuthLanding: React.FC<AuthLandingProps> = ({
                     </button>
                   </div>
                 )}
-                {displayedError.toLowerCase().includes('switch to sign in') && tab === 'signup' && (
-                  <div className="mt-1.5">
+                {(displayedError.toLowerCase().includes('already registered') || displayedError.toLowerCase().includes('switch to sign in')) && (
+                  <div className="mt-1.5 flex flex-wrap items-center gap-2">
                     <button
                       type="button"
                       onClick={() => handleTabChange('signin')}
                       className="font-bold underline text-amber-600 dark:text-amber-400 hover:text-amber-700 cursor-pointer"
                     >
                       Click here to Sign In
+                    </button>
+                    <span className="text-neutral-400">or</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsResetMode(true);
+                        setLocalError(null);
+                      }}
+                      className="font-bold underline text-amber-600 dark:text-amber-400 hover:text-amber-700 cursor-pointer"
+                    >
+                      Reset / Update Password
+                    </button>
+                  </div>
+                )}
+                {(displayedError.toLowerCase().includes('incorrect password') || displayedError.toLowerCase().includes('invalid credentials')) && (
+                  <div className="mt-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsResetMode(true);
+                        setLocalError(null);
+                      }}
+                      className="font-bold underline text-amber-600 dark:text-amber-400 hover:text-amber-700 cursor-pointer"
+                    >
+                      Forgot password? Click here to Reset Password
                     </button>
                   </div>
                 )}
@@ -359,6 +399,9 @@ export const AuthLanding: React.FC<AuthLandingProps> = ({
                     id="input-reset-email"
                     type="email"
                     required
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="name@example.com"
@@ -372,10 +415,47 @@ export const AuthLanding: React.FC<AuthLandingProps> = ({
                 </div>
               </div>
 
+              <div>
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--color-text)' }}>
+                  New Password (minimum 6 characters)
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none" style={{ color: 'var(--color-text-muted)' }}>
+                    <KeyRound className="w-4 h-4" />
+                  </div>
+                  <input
+                    id="input-reset-password"
+                    type={showResetPassword ? 'text' : 'password'}
+                    required
+                    minLength={6}
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    value={resetPasswordVal}
+                    onChange={(e) => setResetPasswordVal(e.target.value)}
+                    placeholder="Enter your new password"
+                    className="w-full pl-10 pr-10 py-2.5 rounded-xl border text-sm focus:outline-hidden focus:ring-2 focus:ring-amber-500/20 transition-all"
+                    style={{
+                      backgroundColor: 'var(--color-surface-elevated)',
+                      borderColor: 'var(--color-border)',
+                      color: 'var(--color-text)',
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowResetPassword(!showResetPassword)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center cursor-pointer hover:opacity-75"
+                    style={{ color: 'var(--color-text-muted)' }}
+                  >
+                    {showResetPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
               <button
                 id="btn-submit-reset"
                 type="submit"
-                disabled={isSubmitting || !email}
+                disabled={isSubmitting || !email || resetPasswordVal.length < 6}
                 className="w-full flex items-center justify-center space-x-2 py-3 rounded-xl font-semibold text-sm transition-all cursor-pointer shadow-md disabled:opacity-50 active:scale-98"
                 style={{
                   backgroundColor: 'var(--color-accent)',
@@ -385,11 +465,11 @@ export const AuthLanding: React.FC<AuthLandingProps> = ({
                 {isSubmitting ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Sending Instructions...</span>
+                    <span>Updating Password...</span>
                   </>
                 ) : (
                   <>
-                    <span>Send Password Reset Email</span>
+                    <span>Reset Password &amp; Sign In</span>
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}
@@ -435,6 +515,9 @@ export const AuthLanding: React.FC<AuthLandingProps> = ({
                     id="input-signup-email"
                     type="email"
                     required
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="maya@example.com"
@@ -461,6 +544,9 @@ export const AuthLanding: React.FC<AuthLandingProps> = ({
                     type={showPassword ? 'text' : 'password'}
                     required
                     minLength={6}
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
@@ -520,6 +606,9 @@ export const AuthLanding: React.FC<AuthLandingProps> = ({
                     id="input-signin-email"
                     type="email"
                     required
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="name@example.com"
@@ -558,6 +647,9 @@ export const AuthLanding: React.FC<AuthLandingProps> = ({
                     id="input-signin-password"
                     type={showPassword ? 'text' : 'password'}
                     required
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"

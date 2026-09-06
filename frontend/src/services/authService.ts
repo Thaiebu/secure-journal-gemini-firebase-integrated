@@ -29,9 +29,27 @@ export async function getAuthHeaders(user?: UserProfile | null): Promise<Record<
   }
 
   const stored = localStorage.getItem('mindreflect_auth_token');
-  if (stored) {
-    headers['Authorization'] = `Bearer ${stored}`;
+  if (stored && stored.trim().length > 0) {
+    headers['Authorization'] = `Bearer ${stored.trim()}`;
     return headers;
+  }
+
+  if (user?.uid) {
+    headers['Authorization'] = `Bearer sess_${user.uid}`;
+    return headers;
+  }
+
+  try {
+    const rawProfile = localStorage.getItem('mindreflect_user_profile');
+    if (rawProfile) {
+      const parsed = JSON.parse(rawProfile);
+      if (parsed?.uid) {
+        headers['Authorization'] = `Bearer sess_${parsed.uid}`;
+        return headers;
+      }
+    }
+  } catch {
+    // Ignore parse error
   }
 
   return headers;
@@ -85,7 +103,8 @@ export async function signUpWithEmailPassword(
       customClaims: tokenResult?.claims || {},
     };
 
-    localStorage.setItem('mindreflect_auth_token', `sess_${userProfile.uid}`);
+    const idToken = await userCredential.user.getIdToken().catch(() => null);
+    localStorage.setItem('mindreflect_auth_token', idToken || `sess_${userProfile.uid}`);
     localStorage.setItem('mindreflect_user_profile', JSON.stringify(userProfile));
 
     // Also ensure backend registers this account so server-side fallback and endpoints stay in sync
@@ -93,7 +112,14 @@ export async function signUpWithEmailPassword(
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: trimmedName, email: trimmedEmail, password }),
-    }).catch(() => null);
+    })
+      .then((res) => res.json().catch(() => ({})))
+      .then((data) => {
+        if (data?.sessionToken) {
+          localStorage.setItem('mindreflect_auth_token', data.sessionToken);
+        }
+      })
+      .catch(() => null);
 
     return { success: true, user: userProfile };
   } catch (clientErr: any) {
@@ -198,7 +224,8 @@ export async function signInWithEmailPassword(
       customClaims: tokenResult?.claims || {},
     };
 
-    localStorage.setItem('mindreflect_auth_token', `sess_${userProfile.uid}`);
+    const idToken = await fbUser.getIdToken().catch(() => null);
+    localStorage.setItem('mindreflect_auth_token', idToken || `sess_${userProfile.uid}`);
     localStorage.setItem('mindreflect_user_profile', JSON.stringify(userProfile));
 
     // Also sync sign-in with backend session
@@ -206,7 +233,14 @@ export async function signInWithEmailPassword(
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: trimmedEmail, password }),
-    }).catch(() => null);
+    })
+      .then((res) => res.json().catch(() => ({})))
+      .then((data) => {
+        if (data?.sessionToken) {
+          localStorage.setItem('mindreflect_auth_token', data.sessionToken);
+        }
+      })
+      .catch(() => null);
 
     return { success: true, user: userProfile };
   } catch (clientErr: any) {
@@ -270,21 +304,76 @@ function cleanFallbackName(name: string | null | undefined, email: string): stri
 }
 
 /**
- * Send Password Reset Email
+ * Password Reset:
+ * Supports resetting the password directly via backend /api/auth/reset-password,
+ * or sending a Firebase reset email if no new password is provided.
  */
-export async function resetPassword(email: string): Promise<{
+export async function resetPassword(
+  email: string,
+  newPassword?: string
+): Promise<{
   success: boolean;
+  user?: UserProfile;
   error?: string;
 }> {
-  try {
-    const trimmedEmail = email.trim().toLowerCase();
-    if (!trimmedEmail || !trimmedEmail.includes('@')) {
-      return { success: false, error: 'Please enter a valid email address.' };
+  const trimmedEmail = email.trim().toLowerCase();
+  if (!trimmedEmail || !trimmedEmail.includes('@')) {
+    return { success: false, error: 'Please enter a valid email address.' };
+  }
+
+  // 1. Direct Password Reset with server verification
+  if (newPassword) {
+    if (newPassword.length < 6) {
+      return { success: false, error: 'Password must be at least 6 characters long.' };
     }
+    try {
+      const response = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: trimmedEmail, newPassword }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        return {
+          success: false,
+          error: data.detail || 'Failed to update password. Please try again.',
+        };
+      }
+
+      const isAdmin = Boolean(data.admin);
+      const userProfile: UserProfile = {
+        uid: data.uid,
+        email: data.email,
+        displayName: data.displayName || cleanFallbackName(null, trimmedEmail),
+        photoURL: null,
+        admin: isAdmin,
+        role: isAdmin ? 'admin' : 'user',
+      };
+
+      if (data.sessionToken) {
+        localStorage.setItem('mindreflect_auth_token', data.sessionToken);
+      }
+      localStorage.setItem('mindreflect_user_profile', JSON.stringify(userProfile));
+      return { success: true, user: userProfile };
+    } catch (serverErr: any) {
+      console.error('[Server Reset Password Error]', serverErr);
+      return {
+        success: false,
+        error: serverErr.message || 'Unable to reset password. Please check your connection.',
+      };
+    }
+  }
+
+  // 2. Client-side Firebase email reset attempt
+  try {
     await sendPasswordResetEmail(auth, trimmedEmail);
     return { success: true };
   } catch (err: any) {
-    const msg = err instanceof Error ? err.message : 'Failed to send password reset email.';
-    return { success: false, error: msg };
+    console.warn('[Firebase Reset Password Notice]', err?.code || err?.message);
+    return {
+      success: false,
+      error: 'Please enter a new password below to reset your credentials directly.',
+    };
   }
 }
