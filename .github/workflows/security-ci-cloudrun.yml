@@ -1,0 +1,88 @@
+name: Security Test Gate & Cloud Run Deployment
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  PROJECT_ID: gen-lang-client-0382888626
+  REGION: asia-southeast1
+  SERVICE_NAME: mindreflect-app
+
+jobs:
+  # -------------------------------------------------------------
+  # Job 1: Security Audit & Testing Quality Gate
+  # -------------------------------------------------------------
+  security-tests:
+    name: Security Tests & Code Quality Gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci || npm install
+
+      - name: Type & Syntax Integrity Check
+        run: npm run lint
+
+      - name: Execute Security Unit Test Suite
+        run: npx vitest run tests/unit
+
+      - name: Verify Build Production Bundle
+        run: npm run build
+
+  # -------------------------------------------------------------
+  # Job 2: Cloud Run Automated Deployment (Guarded by Job 1)
+  # -------------------------------------------------------------
+  deploy-cloud-run:
+    name: Deploy to Cloud Run
+    needs: security-tests
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Authenticate with Google Cloud
+        if: ${{ secrets.GCP_SA_KEY != '' }}
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Setup Google Cloud SDK
+        if: ${{ secrets.GCP_SA_KEY != '' }}
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy Container to Google Cloud Run
+        if: ${{ secrets.GCP_SA_KEY != '' }}
+        run: |
+          gcloud run deploy ${{ env.SERVICE_NAME }} \
+            --source . \
+            --platform managed \
+            --region ${{ env.REGION }} \
+            --allow-unauthenticated \
+            --port 3000 \
+            --set-secrets GEMINI_API_KEY=GEMINI_API_KEY:latest \
+            --set-env-vars NODE_ENV=production \
+            --update-labels=dev-tutorial=cloud-run-ai-challenge
+
+      - name: Info Message (When GCP_SA_KEY Secret is not configured)
+        if: ${{ secrets.GCP_SA_KEY == '' }}
+        run: |
+          echo "================================================================="
+          echo "✅ Security tests passed successfully!"
+          echo "ℹ️ Cloud Run automated deployment skipped because GCP_SA_KEY secret is not yet set in GitHub repository settings."
+          echo "To enable direct auto-deploy on push:"
+          echo "1. Go to your GitHub Repo -> Settings -> Secrets and variables -> Actions"
+          echo "2. Add secret GCP_SA_KEY with your Google Cloud Service Account JSON key."
+          echo "================================================================="
